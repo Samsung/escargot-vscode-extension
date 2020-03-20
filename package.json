@@ -1,0 +1,192 @@
+{
+  "name": "escargot-vscode-extension",
+  "displayName": "Escargot",
+  "description": "Escargot Debugging",
+  "version": "0.1.0",
+  "publisher": "Samsung",
+  "author": {
+    "name": "Samsung Electronics Co., Ltd."
+  },
+  "homepage": "https://github.com/rerobika/escargot-vscode-extension",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rerobika/escargot-vscode-extension.git"
+  },
+  "license": "Apache-2.0",
+  "private": false,
+  "keywords": [
+    "escargot",
+    "debug",
+    "debugger",
+    "javascript",
+    "js"
+  ],
+  "galleryBanner": {
+    "theme": "light"
+  },
+  "engines": {
+    "vscode": "^1.23.0",
+    "node": "^8.11.1"
+  },
+  "categories": [
+    "Debuggers"
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "node ./node_modules/vscode/bin/test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^10.17.26",
+    "@types/sinon": "^4.3.3",
+    "@types/ws": "^4.0.2",
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "sinon": "^5.1.1",
+    "tslint": "^5.20.1",
+    "typescript": "^2.9.2",
+    "vscode": "^1.1.37"
+  },
+  "dependencies": {
+    "@types/ncp": "^2.0.4",
+    "all-unpacker": "^0.1.3",
+    "babel-preset-env": "^1.7.0",
+    "ncp": "^2.0.0",
+    "node-ssh": "^10.0.2",
+    "npm-watch": "^0.6.0",
+    "rimraf": "^2.7.1",
+    "vscode-debugadapter": "^1.41.0",
+    "vscode-debugprotocol": "^1.41.0",
+    "ws": "^5.2.2"
+  },
+  "activationEvents": [
+    "*",
+    "onLanguage:javascript",
+    "onDebug",
+    "onCommand:escargot-debug.initialConfigurations"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out/**"
+  ],
+  "contributes": {
+    "breakpoints": [
+      {
+        "language": "javascript"
+      },
+      {
+        "language": "typescript"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "escargot",
+        "label": "Escargot Debug",
+        "program": "./out/EscargotDebugger.js",
+        "runtime": "node",
+        "initialConfigurations": "escargot-debug.initialConfigurations",
+        "configurationAttributes": {
+          "attach": {
+            "properties": {
+              "address": {
+                "type": "string",
+                "description": "IP address on which the server listening. Default is 'localhost'.",
+                "default": "localhost"
+              },
+              "localRoot": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The local source root.",
+                "default": null
+              },
+              "debugLog": {
+                "type": "number",
+                "description": "Set log level for the debugger: 0 none, 1 error, 2 session, 3 protocol, 4 verbose",
+                "default": 0
+              }
+            }
+          },
+          "launch": {
+            "required": [],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Absolute path to the program.",
+                "default": "escargot"
+              },
+              "args": {
+                "type": "array",
+                "description": "Command line arguments passed to the program.",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "localRoot": {
+                "type": "string",
+                "description": "Absolute path to the working directory of the program being debugged. Default is the current workspace.",
+                "default": "${workspaceRoot}"
+              },
+              "debugLog": {
+                "type": "number",
+                "description": "Set log level for the debugger: 0 none, 1 error, 2 session, 3 protocol, 4 verbose",
+                "default": 0
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Environment variables passed to the program.",
+                "default": {}
+              },
+              "address": {
+                "type": "string",
+                "description": "IP address on which the server listening. Default is 'localhost'.",
+                "default": "localhost"
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "Escargot: Attach",
+            "description": "Attach to a running Escargot.",
+            "body": {
+              "name": "Escargot: Attach",
+              "type": "escargot",
+              "request": "attach",
+              "address": "localhost",
+              "//": "For using the default option please remove this line and the whitespace between `$` and `{`",
+              "localRoot": "$ {workspaceRoot}",
+              "debugLog": 0
+            }
+          },
+          {
+            "label": "Escargot: Launch",
+            "description": "Launch Escargot automatically.",
+            "body": {
+              "name": "Escargot: Launch",
+              "type": "escargot",
+              "request": "launch",
+              "program": "escargot",
+              "//": "For using the default option please remove this line and the whitespace between `$` and `{`",
+              "localRoot": "$ {workspaceRoot}",
+              "address": "localhost",
+              "debugLog": 0,
+              "args": [
+                "--start-debug-server",
+                "--debugger-wait-source"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
