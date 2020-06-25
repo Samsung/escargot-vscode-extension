@@ -97,18 +97,23 @@ $ ./escargot --start-debug-server --debugger-wait-source
 Alternatively you can use LaunchRequest instead of AttachRequest for automatic debug server launch.
 In case of Escargot Debug it looks like this:
 ```json
- {
-    "name": "Escargot.js: Launch",
-    "type": "escargot",
-    "request": "launch",
-    "program": "absolue/path/to/escargot",
-    "address": "localhost",
-    "localRoot": "${workspaceRoot}",
-    "debugLog": 0,
-    "args": [
-        "--start-debug-server",
-        "--debugger-wait-source"
-    ]
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Escargot.js: Launch",
+      "type": "escargot",
+      "request": "launch",
+      "program": "absolue/path/to/escargot",
+      "address": "localhost",
+      "localRoot": "${workspaceRoot}",
+      "debugLog": 0,
+      "args": [
+          "--start-debug-server",
+          "--debugger-wait-source"
+      ]
+    }
+  ]
 }
 ```
 
@@ -149,7 +154,8 @@ $ npm run watch
 If you want to use the development extension just like any other extension in your VSCode then copy the project folder into the VSCode extensions folder:
 ```bash
 # Assume that you are in the extension root folder
-$ ln -s . ~/.vscode/extensions/
+$ ln -s . ~/.vscode/extensions/escargot-vscode-extension
+```
 
 # License
 Escargot VSCode extension is Open Source software under the [Apache 2.0 license](LICENSE). Complete license and copyright information can be found within the code.
