@@ -1052,7 +1052,7 @@ export class EscargotDebugProtocolHandler {
   }
 
   public sendString(messageType: number, str: string, simple: boolean = false) {
-    const requestSendCb = simple ? this.sendSimpleRequest : this.sendSimpleRequest;
+    const requestSendCb = simple ? this.sendSimpleRequest : this.sendRequest;
 
     const array = createArrayFromString(this.byteConfig, str);
 
