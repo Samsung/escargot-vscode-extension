@@ -134,6 +134,19 @@ class PendingRequest {
   }
 }
 
+class PendingEvalRequest {
+  public promise: Promise<any>;
+  public resolve: (arg?: any) => void;
+  public reject: (arg?: any) => void;
+
+  public constructor() {
+    this.promise = new Promise<any>((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+  }
+}
+
 export interface EscargotEvalResult {
   subtype: number;
   value: string;
@@ -196,7 +209,7 @@ export class EscargotDebugProtocolHandler {
 
   private maxMessageSize: number = 0;
   private nextScriptID: number = 1;
-  private evalsPending: number = 0;
+  private evalsPending: Array<PendingEvalRequest> = [];
   private lastBreakpointHit?: Breakpoint;
   private activeBreakpoints: Array<Breakpoint> = [];
   private nextBreakpointIndex: number = 0;
@@ -565,7 +578,7 @@ export class EscargotDebugProtocolHandler {
 
   private onReleaseFunctionPtr(data: Uint8Array): void {
     this.logPacket('Release Function Pointer', true);
-    if (!this.evalsPending) {
+    if (!this.evalsPending.length) {
       const functionPtr = this.decodeMessage('C', data, 1)[0];
       if (functionPtr in this.newFunctions) {
         delete this.newFunctions[functionPtr];
@@ -879,8 +892,9 @@ export class EscargotDebugProtocolHandler {
       this.delegate.onEvalResult(str);
     }
 
-    this.evalsPending--;
-    return `Exception: ${str}`;
+    const resultValue = `Exception: ${str}`;
+    this.evalsPending.shift().resolve(resultValue)
+    return resultValue;
   }
 
   public onEvalFailed(data: Uint8Array): void {
@@ -896,7 +910,7 @@ export class EscargotDebugProtocolHandler {
       this.delegate.onEvalResult(str);
     }
 
-    this.evalsPending--;
+    this.evalsPending.shift().resolve(str)
     return str;
   }
 
@@ -1078,14 +1092,17 @@ export class EscargotDebugProtocolHandler {
     return request;
   }
 
-  public evaluate(expression: string, index: number): Promise<any> {
+  public async evaluate(expression: string, index: number): Promise<any> {
     if (!this.lastBreakpointHit) {
       return Promise.reject(new Error('attempted eval while not at breakpoint'));
     }
 
-    this.evalsPending++;
+    let request = new PendingEvalRequest();
+    this.evalsPending.push(request);
 
-    return this.sendString(SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START, expression);
+    await this.sendString(SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START, expression);
+
+    return request.promise;
   }
 
   public requestScopes(depth: number): Promise<any> {
@@ -1144,7 +1161,7 @@ export class EscargotDebugProtocolHandler {
 
   logPacket(description: string, ignorable: boolean = false) {
     // certain packets are ignored while evals are pending
-    const ignored = (ignorable && this.evalsPending) ? 'Ignored: ' : '';
+    const ignored = (ignorable && this.evalsPending.length) ? 'Ignored: ' : '';
     this.log(`${ignored}${description}`, LOG_LEVEL.PROTOCOL);
   }
 
