@@ -746,6 +746,11 @@ export class EscargotDebugProtocolHandler {
         this.currentScopeVariable.hasValue = true;
         break;
       }
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_BIGINT: {
+        this.currentScopeVariable.type = 'bigint';
+        this.currentScopeVariable.hasValue = true;
+        break;
+      }
       case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_OBJECT: {
         this.currentScopeVariable.type = 'object';
         this.currentScopeVariable.objectIndex = this.decodeMessage('I', data, 2)[0];
