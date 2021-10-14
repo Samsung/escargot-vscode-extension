@@ -75,7 +75,6 @@ class EscargotDebugSession extends DebugSession {
   ): void {
     // This debug adapter implements the configurationDoneRequest.
     response.body.supportsConfigurationDoneRequest = true;
-    response.body.supportsFunctionBreakpoints = true;
     response.body.supportsEvaluateForHovers = false;
     response.body.supportsStepBack = false;
     response.body.supportsDelayedStackTraceLoading = true;
@@ -302,76 +301,6 @@ class EscargotDebugSession extends DebugSession {
       response.body = { breakpoints: [...persistingBreakpoints, ...newBreakpoints] };
     } catch (error) {
       this.log(error.message, LOG_LEVEL.ERROR);
-      this.sendErrorResponse(response, <Error>error);
-      return;
-    }
-
-    this.sendResponse(response);
-  }
-
-  protected async setFunctionBreakPointsRequest(
-    response: DebugProtocol.SetFunctionBreakpointsResponse, args: DebugProtocol.SetFunctionBreakpointsArguments
-  ): Promise<void> {
-    const vscodeFunctionBreakpoints: DebugProtocol.FunctionBreakpoint[] = args.breakpoints;
-
-    try {
-      let persistingFBreakpoints: TemporaryBreakpoint[] = [];
-      let newFBreakpoints: TemporaryBreakpoint[] = [];
-      let undefinedFBreakpoins: TemporaryBreakpoint[] = [];
-
-      await Promise.all(this._protocolhandler.getSources().map(async (src, id) => {
-        const scriptId = id + 1;
-        const inactiveFBps: Breakpoint[] = this._protocolhandler.getInactiveFunctionBreakpointsByScriptId(scriptId);
-        const vscodeFunctionBreakpointNames: string[] = vscodeFunctionBreakpoints.map(b => b.name);
-
-        const newFBs = inactiveFBps.filter(b => vscodeFunctionBreakpointNames.indexOf(b.func.name) !== -1);
-
-        // Get the new breakpoints.
-        newFBreakpoints = [
-          ...newFBreakpoints,
-          ...await Promise.all(newFBs.map(async (breakpoint) => {
-            try {
-              await this._protocolhandler.updateBreakpoint(breakpoint, true);
-              return <TemporaryBreakpoint>{verified: true, line: breakpoint.line};
-            } catch (error) {
-              this.log(error.message, LOG_LEVEL.ERROR);
-              return <TemporaryBreakpoint>{verified: false, line: breakpoint.line, message: (<Error>error).message};
-            }
-          }))
-        ];
-
-        // Get the persisted breakpoints.
-        const possibleFBs = this._protocolhandler.getPossibleFunctionBreakpointsByScriptId(scriptId);
-        persistingFBreakpoints = [
-          ...persistingFBreakpoints,
-          ...possibleFBs.filter(b => {
-            return newFBs.map(b => b.func.name).indexOf(b.func.name) === -1 &&
-                  vscodeFunctionBreakpointNames.indexOf(b.func.name) !== -1;
-          }).map(b => <TemporaryBreakpoint>{verified: true, line: b.line})
-        ];
-
-        // Get the removable breakpoints.
-        const activeFBs: Breakpoint[] = this._protocolhandler.getActiveFunctionBreakpointsByScriptId(scriptId);
-        const removeBps: Breakpoint[] = activeFBs.filter(b => {
-          return vscodeFunctionBreakpointNames.indexOf(b.func.name) === -1;
-        });
-
-        removeBps.forEach(async b => {
-          const escargotBreakpoint = this._protocolhandler.findBreakpoint(scriptId, b.line);
-          await this._protocolhandler.updateBreakpoint(escargotBreakpoint, false);
-        });
-
-        undefinedFBreakpoins = [
-          ...undefinedFBreakpoins,
-          ...vscodeFunctionBreakpoints.filter(b => {
-            return possibleFBs.map(p => p.func.name).indexOf(b.name) === -1;
-          }).map(b => <TemporaryBreakpoint>{verified: false, message: 'No function found'})
-        ];
-      }));
-
-      response.body = { breakpoints: [...persistingFBreakpoints, ...newFBreakpoints, ...undefinedFBreakpoins] };
-    } catch (error) {
-      this.log(error, LOG_LEVEL.ERROR);
       this.sendErrorResponse(response, <Error>error);
       return;
     }
