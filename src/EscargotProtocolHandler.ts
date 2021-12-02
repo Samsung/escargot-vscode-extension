@@ -976,7 +976,7 @@ export class EscargotDebugProtocolHandler {
   public getScriptIdByName(name: string): number {
     const index = this.sources.findIndex(s => s.name && s.name.endsWith(name));
     if (index > 0) return index;
-    throw new Error('no such source');
+    throw new Error(`no such source ${name}`);
   }
 
   public getActiveBreakpoint(breakpointId: number): Breakpoint {
@@ -1093,14 +1093,13 @@ export class EscargotDebugProtocolHandler {
   }
 
   public async evaluate(expression: string, index: number): Promise<any> {
-    if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('attempted eval while not at breakpoint'));
-    }
-
     let request = new PendingEvalRequest();
     this.evalsPending.push(request);
 
-    await this.sendString(SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START, expression);
+    await this.sendString(
+      this.lastBreakpointHit ? SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START :
+      SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_WITHOUT_STOP_8BIT_START,
+      expression, true);
 
     return request.promise;
   }

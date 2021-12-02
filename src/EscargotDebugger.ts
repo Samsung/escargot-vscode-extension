@@ -106,7 +106,9 @@ class EscargotDebugSession extends DebugSession {
     }
 
     this._attachArgs = args;
-    this._attachArgs.port = 6501;
+    if (!this._attachArgs.port) {
+      this._attachArgs.port = 6501;
+    }
     if (args.debugLog in LOG_LEVEL) {
       this._debugLog = args.debugLog;
     } else {
