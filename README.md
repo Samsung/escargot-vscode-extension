@@ -53,6 +53,7 @@ You have to open (or create a new) project folder where you have to define a `la
       "type": "escargot",
       "request": "attach",
       "address": "localhost",
+      "port": 6501,
       "localRoot": "${workspaceRoot}",
       "debugLog": 0
     },
@@ -65,6 +66,7 @@ These configuration options are required. Manifest:
 - `type`: This must be `escargot` otherwise the debug session wont start
 - `request`: Type of the session start
 - `address`: IP address on which the server listening. Default is `localhost`
+- `port`: Port on which the server listening. Default is `6501`
 - `localRoot`: The local source root directoy, most cases this is the `${workspaceRoot}`
 - `debugLog`: The type of the debug log, you can choose from 0 to 4:
     - 0: none
