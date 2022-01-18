@@ -55,29 +55,13 @@ const walkSync = (dir: string, filelist: string[] = []): string[] => {
   return filelist.filter(f => path.extname(f).toLowerCase().match(/\.(js)$/i) && f !== '' && (fs.statSync(f).size) > 0);
 };
 
-const getListOfFiles = (): string[] => {
-  let wsFiles: string[] = [];
-
-  vscode.workspace.workspaceFolders.map(folder => folder.uri.fsPath).forEach(entry => {
-    wsFiles = [...wsFiles, ...walkSync(entry)];
-  });
-
-  return wsFiles;
-};
-
-const getProgramName = (): Thenable<string[]> => {
-  return vscode.window.showQuickPick(getListOfFiles(), {
-    placeHolder: 'Select a file you want to debug',
-    canPickMany: true,
-    ignoreFocusOut: true,
-    onDidSelectItem: item => {
-      if (pathArray.indexOf(item.toString()) === -1) {
-        pathArray.push(item.toString());
-      } else {
-        pathArray.splice(pathArray.indexOf(item.toString()), 1);
-      }
+const options: vscode.OpenDialogOptions = {
+     canSelectMany: false,
+     openLabel: 'Open',
+     filters: {
+        'Text files': ['txt'],
+        'All files': ['*']
     }
-  });
 };
 
 const getProgramSource = (path: string[]): string[] => {
@@ -97,8 +81,26 @@ const processCustomEvent = async (e: vscode.DebugSessionCustomEvent): Promise<an
     switch (eventType) {
       case 'readSources': {
         console.log(path);
-        await getProgramName().then(path => path);
-        sources = getProgramSource(pathArray);
+        pathArray = [];
+        await vscode.window.showOpenDialog(options).then(fileUri => {
+          let data = [];
+          let folder_path = "";
+          if (fileUri && fileUri[0]) {
+            data = fs.readFileSync(fileUri[0].fsPath,'utf8').toString().split("\n");
+            folder_path = path.dirname(fileUri[0].fsPath);
+          }
+          for(let i = 0; i < data.length; i++) {
+            if (data[i].trim().startsWith("#") || typeof data[i] == 'undefined' || data[i] == "") {
+              delete data[i];
+            } else {
+              if (pathArray.indexOf(data[i].toString()) === -1 && data[i] != '') {
+                pathArray.push(path.join(folder_path,data[i]));
+                vscode.window.showInformationMessage(path.join(folder_path,data[i]));
+              }
+            }
+          }
+          sources = getProgramSource(pathArray);
+        });
         eventType = 'sendNextSource';
         break;
       }
