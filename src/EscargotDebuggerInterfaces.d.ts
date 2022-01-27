@@ -49,6 +49,8 @@ export interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArgu
   address: string;
   /** Debug port.*/
   port: number;
+  /** Execution mode if running multiple files. */
+  wait_for_source_mode?: string;
 }
 
 export interface SourceSendingOptions {

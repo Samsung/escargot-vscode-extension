@@ -180,7 +180,7 @@ class EscargotDebugSession extends DebugSession {
       onScriptParsed: (data: EscargotMessageScriptParsed) => this.onScriptParsed(data),
       onError: (code: number, message: string) => this.onClose(),
       onOutput: (message: string, category?: string) => this.logOutput(message, category),
-      onWaitForSource: () => this.onWaitForSource()
+      onWaitForSource: () => this.onWaitForSource((<ILaunchRequestArguments>args).wait_for_source_mode)
     };
 
     this._protocolhandler = new EscargotDebugProtocolHandler(
@@ -521,11 +521,11 @@ class EscargotDebugSession extends DebugSession {
     this.handleSource(data);
   }
 
-  private async onWaitForSource(): Promise<void> {
+  private async onWaitForSource(mode?: string): Promise<void> {
     this.log('onWaitForSource', LOG_LEVEL.SESSION);
 
     if (this._sourceSendingOptions.state === SOURCE_SENDING_STATES.NOP) {
-      this.sendEvent(new Event('readSources'));
+      this.sendEvent(new Event('readSources', mode));
       this._sourceSendingOptions.state = SOURCE_SENDING_STATES.WAITING;
     } else if (this._sourceSendingOptions.state === SOURCE_SENDING_STATES.WAITING) {
       this.sendEvent(new Event('sendNextSource'));
