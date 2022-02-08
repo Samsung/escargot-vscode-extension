@@ -55,15 +55,6 @@ const walkSync = (dir: string, filelist: string[] = []): string[] => {
   return filelist.filter(f => path.extname(f).toLowerCase().match(/\.(js)$/i) && f !== '' && (fs.statSync(f).size) > 0);
 };
 
-const options: vscode.OpenDialogOptions = {
-     canSelectMany: false,
-     openLabel: 'Open',
-     filters: {
-        'Text files': ['txt'],
-        'All files': ['*']
-    }
-};
-
 const getProgramSource = (path: string[]): string[] => {
   return path.map((p) => {
     return fs.readFileSync(p, {
@@ -74,54 +65,87 @@ const getProgramSource = (path: string[]): string[] => {
 
 };
 
+const getListOfFiles = (): string[] => {
+  let wsFiles: string[] = [];
+
+  vscode.workspace.workspaceFolders.map(folder => folder.uri.fsPath).forEach(entry => {
+    wsFiles = [...wsFiles, ...walkSync(entry)];
+  });
+
+  return wsFiles;
+};
+
+const getProgramName = (): Thenable<string[]> => {
+  return vscode.window.showQuickPick(getListOfFiles(), {
+    placeHolder: 'Select a file you want to debug',
+    canPickMany: true,
+    ignoreFocusOut: true,
+    onDidSelectItem: item => {
+      if (pathArray.indexOf(item.toString()) === -1) {
+        pathArray.push(item.toString());
+      } else {
+        pathArray.splice(pathArray.indexOf(item.toString()), 1);
+      }
+     }
+   });
+ };
+
 const processCustomEvent = async (e: vscode.DebugSessionCustomEvent): Promise<any> => {
   let eventType: string = e.event;
+  switch (eventType) {
+    case 'readSources': {
+      pathArray = [];
 
-  while (true) {
-    switch (eventType) {
-      case 'readSources': {
-        console.log(path);
-        pathArray = [];
-        await vscode.window.showOpenDialog(options).then(fileUri => {
-          let data = [];
-          let folder_path = "";
-          if (fileUri && fileUri[0]) {
-            data = fs.readFileSync(fileUri[0].fsPath,'utf8').toString().split("\n");
-            folder_path = path.dirname(fileUri[0].fsPath);
-          }
-          for(let i = 0; i < data.length; i++) {
-            if (data[i].trim().startsWith("#") || typeof data[i] == 'undefined' || data[i] == "") {
-              delete data[i];
-            } else {
-              if (pathArray.indexOf(data[i].toString()) === -1 && data[i] != '') {
-                pathArray.push(path.join(folder_path,data[i]));
-                vscode.window.showInformationMessage(path.join(folder_path,data[i]));
-              }
+      if(e.body == "quickpicklist") {
+        await getProgramName().then(path => path);
+      }
+
+      else if(e.body.endsWith(".txt")) {
+        let data = [];
+        let folder_path = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        data = fs.readFileSync(path.join(folder_path, e.body),'utf8').toString().split("\n");
+        for(let i = 0; i < data.length; i++) {
+          if (!data[i] || data[i].toString().trim().startsWith("#")) {
+            delete data[i];
+          } else {
+            if (pathArray.indexOf(data[i].toString()) === -1) {
+              pathArray.push(path.join(folder_path,data[i].toString()));
             }
           }
-          sources = getProgramSource(pathArray);
-        });
-        eventType = 'sendNextSource';
-        break;
-      }
-      case 'sendNextSource': {
-        let program = {};
-
-        if (sources.length) {
-          program = {
-            name: pathArray.shift(),
-            source: sources.shift(),
-            isLast: sources.length === 0
-          };
         }
-
-        vscode.debug.activeDebugSession.customRequest('sendSource', { program });
-        return true;
       }
-      default:
-        return undefined;
+
+      sources = getProgramSource(pathArray);
+      break;
+    }
+    case 'sendNextSource': {
+      break;
+    }
+    default: {
+      return undefined;
     }
   }
+
+  let program = {};
+  if (sources.length) {
+    program = {
+      name: pathArray.shift(),
+      source: sources.shift(),
+      isLast: sources.length === 0
+    };
+  }
+
+  let retries = 0;
+  while (!vscode.debug.activeDebugSession) {
+    await new Promise(f => setTimeout(f, 100));
+
+    if (++retries > 100) {
+      return undefined;
+    }
+  }
+
+  vscode.debug.activeDebugSession.customRequest('sendSource', { program });
+  return true;
 };
 
 export const activate = (context: vscode.ExtensionContext) => {
