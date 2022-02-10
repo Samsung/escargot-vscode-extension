@@ -33,44 +33,42 @@ const defaultConfig = [{
 }];
 
 const provideInitialConfigurations = (): string => {
-  const config = JSON.stringify(defaultConfig, null, '\t').split('\n')
-                                                          .map(line => '\t' + line)
-                                                          .join('\n').trim();
+  const config = JSON.stringify(defaultConfig, null, '\t')
+                     .split('\n')
+                     .map(line => '\t' + line)
+                     .join('\n')
+                     .trim();
 
   return [
-    '{',
-    '\t"version": "0.2.0",',
-    `\t"configurations": ${config}`,
-    '}'
+    '{', '\t"version": "0.2.0",', `\t"configurations": ${config}`, '}'
   ].join('\n');
 };
 
 const walkSync = (dir: string, filelist: string[] = []): string[] => {
   fs.readdirSync(dir).forEach(file => {
-    filelist = fs.statSync(path.join(dir, file)).isDirectory()
-      ? walkSync(path.join(dir, file), filelist)
-      : filelist.concat(path.join(dir, file));
+    filelist = fs.statSync(path.join(dir, file)).isDirectory() ?
+        walkSync(path.join(dir, file), filelist) :
+        filelist.concat(path.join(dir, file));
   });
 
-  return filelist.filter(f => path.extname(f).toLowerCase().match(/\.(js)$/i) && f !== '' && (fs.statSync(f).size) > 0);
+  return filelist.filter(
+      f => path.extname(f).toLowerCase().match(/\.(js)$/i) && f !== '' &&
+          (fs.statSync(f).size) > 0);
 };
 
 const getProgramSource = (path: string[]): string[] => {
   return path.map((p) => {
-    return fs.readFileSync(p, {
-      encoding: 'utf8',
-      flag: 'r'
-    });
+    return fs.readFileSync(p, {encoding: 'utf8', flag: 'r'});
   });
-
 };
 
 const getListOfFiles = (): string[] => {
   let wsFiles: string[] = [];
 
-  vscode.workspace.workspaceFolders.map(folder => folder.uri.fsPath).forEach(entry => {
-    wsFiles = [...wsFiles, ...walkSync(entry)];
-  });
+  vscode.workspace.workspaceFolders.map(folder => folder.uri.fsPath)
+      .forEach(entry => {
+        wsFiles = [...wsFiles, ...walkSync(entry)];
+      });
 
   return wsFiles;
 };
@@ -86,30 +84,33 @@ const getProgramName = (): Thenable<string[]> => {
       } else {
         pathArray.splice(pathArray.indexOf(item.toString()), 1);
       }
-     }
-   });
- };
+    }
+  });
+};
 
-const processCustomEvent = async (e: vscode.DebugSessionCustomEvent): Promise<any> => {
+const processCustomEvent =
+    async(e: vscode.DebugSessionCustomEvent): Promise<any> => {
   let eventType: string = e.event;
   switch (eventType) {
     case 'readSources': {
       pathArray = [];
 
-      if(e.body == "quickpicklist") {
+      if (e.body == 'quickpicklist') {
         await getProgramName().then(path => path);
       }
 
-      else if(e.body.endsWith(".txt")) {
+      else if (e.body.endsWith('.txt')) {
         let data = [];
         let folder_path = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        data = fs.readFileSync(path.join(folder_path, e.body),'utf8').toString().split("\n");
-        for(let i = 0; i < data.length; i++) {
-          if (!data[i] || data[i].toString().trim().startsWith("#")) {
+        data = fs.readFileSync(path.join(folder_path, e.body), 'utf8')
+                   .toString()
+                   .split('\n');
+        for (let i = 0; i < data.length; i++) {
+          if (!data[i] || data[i].toString().trim().startsWith('#')) {
             delete data[i];
           } else {
             if (pathArray.indexOf(data[i].toString()) === -1) {
-              pathArray.push(path.join(folder_path,data[i].toString()));
+              pathArray.push(path.join(folder_path, data[i].toString()));
             }
           }
         }
@@ -144,16 +145,18 @@ const processCustomEvent = async (e: vscode.DebugSessionCustomEvent): Promise<an
     }
   }
 
-  vscode.debug.activeDebugSession.customRequest('sendSource', { program });
+  vscode.debug.activeDebugSession.customRequest('sendSource', {program});
   return true;
 };
 
 export const activate = (context: vscode.ExtensionContext) => {
   context.subscriptions.push(
-    vscode.commands.registerCommand('escargot-debug.provideInitialConfigurations', provideInitialConfigurations),
-    vscode.debug.onDidReceiveDebugSessionCustomEvent(e => processCustomEvent(e))
-    );
-  };
+      vscode.commands.registerCommand(
+          'escargot-debug.provideInitialConfigurations',
+          provideInitialConfigurations),
+      vscode.debug.onDidReceiveDebugSessionCustomEvent(
+          e => processCustomEvent(e)));
+};
 
 export const deactivate = () => {
   // Nothing to do.

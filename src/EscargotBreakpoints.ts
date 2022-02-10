@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { ParserFrame } from './EscargotProtocolHandler';
+import {ParserFrame} from './EscargotProtocolHandler';
 
 export interface BreakpointMap {
   [index: number]: Breakpoint;
@@ -51,7 +51,8 @@ export class Breakpoint {
 
     let detail = '';
     if (this.func.isFunc) {
-      detail = ` (in ${this.func.name || 'function'}() at line:${this.func.line}, col:${this.func.column})`;
+      detail = ` (in ${this.func.name || 'function'}() at line:${
+          this.func.line}, col:${this.func.column})`;
     }
 
     return `${sourceName}:${this.line}${detail}`;
