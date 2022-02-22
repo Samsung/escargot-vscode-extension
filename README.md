@@ -32,7 +32,9 @@
     - Handle source receive from the engine
     - Sending source code from the vscode to the engine
     - Automatic Escargot debug server launch
-    - Multiple source handling
+    - Multiple source handling with quickpicklist
+    - Multiple source handling with list of files
+    - Stop after finish running
 
 
 # Requirements
@@ -133,7 +135,7 @@ absolute path to executable (e.g.:/path/to/escargot/folder/escargot)
     - 2: Debug Session related (requests and their responses)
     - 3: Debug Protocol related (communication between the engine and the client)
     - 4: Verbose (each log type included)
-- `args`: Arguments for debug server. Recommended to use --start-debug-server and --debugger-wait-source.
+- `args`: Arguments for debug server. Recommended to use --start-debug-server, --debugger-wait-source and --wait-before-exit.
 
 
 After the engine is running you can start the debug session inside the extension host by pressing the `F5` key or click on the green triangle in the debug panel.
