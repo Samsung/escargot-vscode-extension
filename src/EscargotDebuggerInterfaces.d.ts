@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { DebugProtocol } from 'vscode-debugprotocol';
+import {DebugProtocol} from 'vscode-debugprotocol';
 
-export interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
+export interface IAttachRequestArguments extends
+    DebugProtocol.AttachRequestArguments {
   /** IP address on which the server listening. */
   address: string;
   /** Debug port to attach to. */
@@ -34,7 +35,8 @@ export interface SourceSendingOptions {
   state: number;
 }
 
-export interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
+export interface ILaunchRequestArguments extends
+    DebugProtocol.LaunchRequestArguments {
   /** This is the absolute path to escargot executable. */
   program: string;
   /** This allows to log debug messages to console. */
@@ -44,8 +46,11 @@ export interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArgu
   /** VSCode's root directory.*/
   localRoot: string;
   /** Additional environment variables */
-  env?: { [key: string]: string };
-  /** The IP address on which the server is listening. Default value is localhost. */
+  env?: {[key: string]: string};
+  /**
+   * The IP address on which the server is listening. Default value is
+   * localhost.
+   */
   address: string;
   /** Debug port.*/
   port: number;

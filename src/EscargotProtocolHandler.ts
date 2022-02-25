@@ -15,14 +15,11 @@
  * limitations under the License.
  */
 
+import {Breakpoint, ParsedFunction} from './EscargotBreakpoints';
+import {EscargotDebuggerClient} from './EscargotDebuggerClient';
+import {LOG_LEVEL} from './EscargotDebuggerConstants';
 import * as SP from './EscargotProtocolConstants';
-import { Breakpoint, ParsedFunction } from './EscargotBreakpoints';
-import {
-  ByteConfig, createStringFromArray, assembleUint8Arrays,
-  decodeMessage, encodeMessage, createArrayFromString, assembleUint16Arrays
-} from './EscargotUtils';
-import { EscargotDebuggerClient } from './EscargotDebuggerClient';
-import { LOG_LEVEL } from './EscargotDebuggerConstants';
+import {assembleUint16Arrays, assembleUint8Arrays, ByteConfig, createArrayFromString, createStringFromArray, decodeMessage, encodeMessage} from './EscargotUtils';
 
 export type Pointer = string;
 export type ByteCodeOffset = number;
@@ -45,7 +42,8 @@ export interface ParserFrame {
 
 export interface EscargotDebugProtocolDelegate {
   onBacktrace?(backtrace: EscargotBacktraceResult): void;
-  onBreakpointHit?(message: EscargotMessageBreakpointHit, stopType: string): void;
+  onBreakpointHit?
+      (message: EscargotMessageBreakpointHit, stopType: string): void;
   onExceptionHit?(message: string): void;
   onEvalResult?(result: string): void;
   onError?(code: number, message: string): void;
@@ -199,7 +197,8 @@ export class EscargotDebugProtocolHandler {
   private isFunction: boolean = false;
   private functions: FunctionMap = {};
   private newFunctions: FunctionMap = {};
-  private backtraceData: EscargotBacktraceResult = {totalFrames : 0, backtrace: []};
+  private backtraceData:
+      EscargotBacktraceResult = {totalFrames: 0, backtrace: []};
   private backtraceFrames: Map<number, number>;
   private scopeList: Map<number, EscargotScopeChainElement>;
   private backtraceFrameID: number = 0;
@@ -255,7 +254,8 @@ export class EscargotDebugProtocolHandler {
       [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_NAME_8BIT]: this.onFunctionName,
       [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_NAME_8BIT_END]: this.onFunctionName,
       [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_NAME_16BIT]: this.onFunctionName,
-      [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_NAME_16BIT_END]: this.onFunctionName,
+      [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_NAME_16BIT_END]:
+          this.onFunctionName,
 
       [SP.SERVER.ESCARGOT_DEBUGGER_BREAKPOINT_LOCATION]: this.onBreakpointList,
       [SP.SERVER.ESCARGOT_DEBUGGER_FUNCTION_PTR]: this.onFunctionPtr,
@@ -286,17 +286,24 @@ export class EscargotDebugProtocolHandler {
       [SP.SERVER.ESCARGOT_DEBUGGER_STRING_16BIT_END]: this.onMessageString,
       [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_PRINT]: this.onPrint,
       [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION]: this.onException,
-      [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION_BACKTRACE]: this.onBacktrace,
+      [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION_BACKTRACE]:
+          this.onBacktrace,
       [SP.SERVER.ESCARGOT_DEBUGGER_WAITWAIT_FOR_SOURCE]: this.onWaitForSource,
     };
 
     this.scopeNameMap = {
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_GLOBAL]: 'Global Environment',
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_FUNCTION]: 'Function Environment',
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_DECLARATIVE]: 'Declarative Environment',
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_OBJECT]: 'Object Environment',
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_MODULE]: 'Module Environment',
-      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_UNKNOWN]: 'Unknown Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_GLOBAL]:
+          'Global Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_FUNCTION]:
+          'Function Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_DECLARATIVE]:
+          'Declarative Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_OBJECT]:
+          'Object Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_MODULE]:
+          'Module Environment',
+      [SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_UNKNOWN]:
+          'Unknown Environment',
     };
 
     this.requestQueue = [];
@@ -330,14 +337,17 @@ export class EscargotDebugProtocolHandler {
     }
 
     this.lastStopType = SP.CLIENT.ESCARGOT_DEBUGGER_STOP;
-    return this.sendSimpleRequest(encodeMessage(this.byteConfig, 'B', [SP.CLIENT.ESCARGOT_DEBUGGER_STEP]));
+    return this.sendSimpleRequest(encodeMessage(
+        this.byteConfig, 'B', [SP.CLIENT.ESCARGOT_DEBUGGER_STEP]));
   }
 
   public resume(): Promise<any> {
     return this.resumeExec(SP.CLIENT.ESCARGOT_DEBUGGER_CONTINUE);
   }
 
-  public getPossibleBreakpoints(scriptId: number, startLine: number, endLine?: number): Array<Breakpoint> {
+  public getPossibleBreakpoints(
+      scriptId: number, startLine: number,
+      endLine?: number): Array<Breakpoint> {
     const array = [];
     const lineList = this.lineLists[scriptId];
     for (const line in lineList) {
@@ -365,7 +375,8 @@ export class EscargotDebugProtocolHandler {
     return '';
   }
 
-  private decodeMessage(format: string, message: Uint8Array, offset: number): any {
+  private decodeMessage(format: string, message: Uint8Array, offset: number):
+      any {
     return decodeMessage(this.byteConfig, format, message, offset);
   }
 
@@ -395,8 +406,8 @@ export class EscargotDebugProtocolHandler {
     this.maxMessageSize = data[1];
     this.byteConfig.pointerSize = data[2];
 
-    if (this.byteConfig.pointerSize !== 4
-        && this.byteConfig.pointerSize !== 8) {
+    if (this.byteConfig.pointerSize !== 4 &&
+        this.byteConfig.pointerSize !== 8) {
       this.abort(`unsupported pointer size: ${this.byteConfig.pointerSize}`);
     }
   }
@@ -406,7 +417,7 @@ export class EscargotDebugProtocolHandler {
 
     const decoded = this.decodeMessage('CII', data, 1);
 
-    const frame = <ParserFrame> {
+    const frame = <ParserFrame>{
       isFunction: this.isFunction,
       scriptId: this.nextScriptID,
       line: decoded[1],
@@ -482,11 +493,13 @@ export class EscargotDebugProtocolHandler {
     if (is8bit) {
       this.stringBuffer = assembleUint8Arrays(this.stringBuffer, data);
     } else {
-      this.stringBuffer16 = assembleUint16Arrays(this.byteConfig, this.stringBuffer16, data);
+      this.stringBuffer16 =
+          assembleUint16Arrays(this.byteConfig, this.stringBuffer16, data);
     }
 
     if (isEnd) {
-      const str = createStringFromArray(is8bit ? this.stringBuffer : this.stringBuffer16);
+      const str = createStringFromArray(
+          is8bit ? this.stringBuffer : this.stringBuffer16);
       this.stringReceiverMessage = NaN;
       this.stringBuffer = undefined;
       this.stringBuffer16 = undefined;
@@ -513,7 +526,7 @@ export class EscargotDebugProtocolHandler {
     this.receiveString(data);
   }
 
-  private onFileNameEnd (str: string): void {
+  private onFileNameEnd(str: string): void {
     if (str === 'eval input') {
       str = 'eval_' + this.nextScriptID + '.js';
     }
@@ -592,7 +605,8 @@ export class EscargotDebugProtocolHandler {
     this.sendSimpleRequest(data);
   }
 
-  private getBreakpoint(breakpointData: Array<number>): EscargotMessageBreakpointHit {
+  private getBreakpoint(breakpointData: Array<number>):
+      EscargotMessageBreakpointHit {
     const func = this.functions[breakpointData[0]];
     const offset = breakpointData[1];
 
@@ -639,11 +653,15 @@ export class EscargotDebugProtocolHandler {
     }
 
     const atAround = breakpointRef.exact ? 'at' : 'around';
-    this.log(`Stopped ${atAround} ${breakpointInfo}${breakpoint}`, LOG_LEVEL.PROTOCOL);
+    this.log(
+        `Stopped ${atAround} ${breakpointInfo}${breakpoint}`,
+        LOG_LEVEL.PROTOCOL);
 
     if (this.delegate.onBreakpointHit) {
       const stopTypeText = this.stopTypeMap[this.lastStopType] || 'entry';
-      const stopType = `${breakpoint.activeIndex === -1 ? 'inactive ' : ''}breakpoint (${stopTypeText})`;
+      const stopType =
+          `${breakpoint.activeIndex === -1 ? 'inactive ' : ''}breakpoint (${
+              stopTypeText})`;
       this.delegate.onBreakpointHit(breakpointRef, stopType);
     }
 
@@ -652,15 +670,19 @@ export class EscargotDebugProtocolHandler {
 
   public processScopeChainElement(data: Uint8Array): void {
     for (let i = 1; i < data.byteLength; i++) {
-      if (data[i] > SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_UNKNOWN) {
+      if (data[i] >
+          SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_UNKNOWN) {
         throw new Error('Invalid scope chain type!');
       }
 
-      this.scopeList.set(this.scopeID, { scopeIndex : i - 1 });
-      const expensive: boolean = data[i] === SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_GLOBAL;
-      this.currentScopeChain.push({name: this.scopeNameMap[data[i]],
-                                   scopeID: this.scopeID++,
-                                   expensive});
+      this.scopeList.set(this.scopeID, {scopeIndex: i - 1});
+      const expensive: boolean = data[i] ===
+          SP.ESCARGOT_DEBUGGER_SCOPE_TYPE.ESCARGOT_DEBUGGER_SCOPE_GLOBAL;
+      this.currentScopeChain.push({
+        name: this.scopeNameMap[data[i]],
+        scopeID: this.scopeID++,
+        expensive
+      });
     }
   }
 
@@ -682,8 +704,9 @@ export class EscargotDebugProtocolHandler {
 
   public onScopeVariableValue(str: string) {
     this.logPacket('ScopeVariable Value');
-    if (this.currentScopeVariable.fullType
-        & SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_LONG_VALUE) {
+    if (this.currentScopeVariable.fullType &
+        SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+            .ESCARGOT_DEBUGGER_VARIABLE_LONG_VALUE) {
       this.currentScopeVariable.value += '...';
     }
 
@@ -694,8 +717,9 @@ export class EscargotDebugProtocolHandler {
   public onScopeVariableName(str: string) {
     this.logPacket('ScopeVariable Name');
     this.currentScopeVariable.name = str;
-    if (this.currentScopeVariable.fullType
-        & SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_LONG_NAME) {
+    if (this.currentScopeVariable.fullType &
+        SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+            .ESCARGOT_DEBUGGER_VARIABLE_LONG_NAME) {
       this.currentScopeVariable.name += '...';
     }
 
@@ -709,78 +733,96 @@ export class EscargotDebugProtocolHandler {
   public onScopeVariable(data: Uint8Array): any {
     this.logPacket('ScopeVariables');
 
-    this.currentScopeVariable = {name: '',
-                                 type: '',
-                                 value: '',
-                                 fullType: data[1],
-                                 hasValue: false,
-                                 objectIndex: -1};
+    this.currentScopeVariable = {
+      name: '',
+      type: '',
+      value: '',
+      fullType: data[1],
+      hasValue: false,
+      objectIndex: -1
+    };
 
     let variableType = this.currentScopeVariable.fullType & 0x3f;
 
     switch (variableType) {
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_END: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_END: {
         let scopeVariables = this.scopeVariables;
         this.scopeVariables = [];
         return scopeVariables;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_UNACCESSIBLE: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_UNACCESSIBLE: {
         this.currentScopeVariable.type = 'unaccessible';
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_UNDEFINED: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_UNDEFINED: {
         this.currentScopeVariable.type = 'undefined';
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_NULL: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_NULL: {
         this.currentScopeVariable.type = 'null';
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_TRUE: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_TRUE: {
         this.currentScopeVariable.type = 'true';
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_FALSE: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_FALSE: {
         this.currentScopeVariable.type = 'false';
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_NUMBER: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_NUMBER: {
         this.currentScopeVariable.type = 'number';
         this.currentScopeVariable.hasValue = true;
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_STRING: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_STRING: {
         this.currentScopeVariable.type = 'string';
         this.currentScopeVariable.hasValue = true;
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_SYMBOL: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_SYMBOL: {
         this.currentScopeVariable.type = 'Symbol:';
         this.currentScopeVariable.hasValue = true;
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_BIGINT: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_BIGINT: {
         this.currentScopeVariable.type = 'bigint';
         this.currentScopeVariable.hasValue = true;
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_OBJECT: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_OBJECT: {
         this.currentScopeVariable.type = 'object';
-        this.currentScopeVariable.objectIndex = this.decodeMessage('I', data, 2)[0];
+        this.currentScopeVariable.objectIndex =
+            this.decodeMessage('I', data, 2)[0];
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_ARRAY: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_ARRAY: {
         this.currentScopeVariable.type = 'array';
-        this.currentScopeVariable.objectIndex = this.decodeMessage('I', data, 2)[0];
+        this.currentScopeVariable.objectIndex =
+            this.decodeMessage('I', data, 2)[0];
         break;
       }
-      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES.ESCARGOT_DEBUGGER_VARIABLE_FUNCTION: {
+      case SP.ESCARGOT_DEBUGGER_SCOPE_VARIABLES
+          .ESCARGOT_DEBUGGER_VARIABLE_FUNCTION: {
         this.currentScopeVariable.type = 'function';
-        this.currentScopeVariable.objectIndex = this.decodeMessage('I', data, 2)[0];
+        this.currentScopeVariable.objectIndex =
+            this.decodeMessage('I', data, 2)[0];
         break;
       }
       default: {
-        throw Error ('Invalid scope variable type');
+        throw Error('Invalid scope variable type');
       }
     }
 
@@ -840,7 +882,8 @@ export class EscargotDebugProtocolHandler {
   }
 
   private decodeBackTraceFrame(data: Uint8Array): void {
-    for (let i = 1;  i < data.byteLength; i += this.byteConfig.pointerSize + 12) {
+    for (let i = 1; i < data.byteLength;
+         i += this.byteConfig.pointerSize + 12) {
       const backtraceData = this.decodeMessage('CIII', data, i);
       let frame = <EscargotBacktraceFrame>{
         function: this.functions[backtraceData[0]],
@@ -959,7 +1002,8 @@ export class EscargotDebugProtocolHandler {
         }
       }
     } else {
-      if (request) request.reject(`unhandled protocol message type: ${message[0]}`);
+      if (request)
+        request.reject(`unhandled protocol message type: ${message[0]}`);
       this.abort(`unhandled protocol message type: ${message[0]}`);
     }
   }
@@ -975,7 +1019,8 @@ export class EscargotDebugProtocolHandler {
 
   public getScriptIdByName(name: string): number {
     const index = this.sources.findIndex(s => s.name && s.name.endsWith(name));
-    if (index > 0) return index;
+    if (index > 0)
+      return index;
     throw new Error(`no such source ${name}`);
   }
 
@@ -987,26 +1032,36 @@ export class EscargotDebugProtocolHandler {
     return this.activeBreakpoints.filter(b => b.scriptId === scriptId);
   }
 
-  public getActiveFunctionBreakpointsByScriptId(scriptId: number): Breakpoint[] {
-    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(b => b.activeIndex !== -1);
+  public getActiveFunctionBreakpointsByScriptId(scriptId: number):
+      Breakpoint[] {
+    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(
+        b => b.activeIndex !== -1);
   }
 
-  public getInactiveFunctionBreakpointsByScriptId(scriptId: number): Breakpoint[] {
-    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(b => b.activeIndex === -1);
+  public getInactiveFunctionBreakpointsByScriptId(scriptId: number):
+      Breakpoint[] {
+    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(
+        b => b.activeIndex === -1);
   }
 
-  public getPossibleFunctionBreakpointsByScriptId(scriptId: number): Breakpoint[] {
+  public getPossibleFunctionBreakpointsByScriptId(scriptId: number):
+      Breakpoint[] {
     if (scriptId <= 0 || scriptId >= this.lineLists.length) {
       throw new Error('invalid script id');
     }
 
-    const keys: string[] = Object.keys(this.functions).filter(f => this.functions[f].scriptId === scriptId);
-    const bps: Breakpoint[] = keys.map(key => this.functions[key].lines[Object.keys(this.functions[key].lines)[0]]);
+    const keys: string[] =
+        Object.keys(this.functions)
+            .filter(f => this.functions[f].scriptId === scriptId);
+    const bps: Breakpoint[] = keys.map(
+        key => this.functions[key]
+                   .lines[Object.keys(this.functions[key].lines)[0]]);
 
     return bps.length ? bps.filter(b => b.func.name !== '') : [];
   }
 
-  public findBreakpoint(scriptId: number, line: number, column: number = 0): Breakpoint {
+  public findBreakpoint(scriptId: number, line: number, column: number = 0):
+      Breakpoint {
     if (scriptId <= 0 || scriptId >= this.lineLists.length) {
       throw new Error('invalid script id');
     }
@@ -1025,7 +1080,8 @@ export class EscargotDebugProtocolHandler {
     throw new Error('no breakpoint found');
   }
 
-  public updateBreakpoint(breakpoint: Breakpoint, enable: boolean): Promise<void> {
+  public updateBreakpoint(breakpoint: Breakpoint, enable: boolean):
+      Promise<void> {
     let breakpointId;
 
     if (enable) {
@@ -1071,7 +1127,8 @@ export class EscargotDebugProtocolHandler {
       return requestSendCb.call(this, Uint8Array.from([...message, ...array]));
     }
 
-    let request = requestSendCb.call(this, Uint8Array.from([...message, ...array.slice(0, maxFragment)]));
+    let request = requestSendCb.call(
+        this, Uint8Array.from([...message, ...array.slice(0, maxFragment)]));
     let offset = maxFragment;
     messageHeader = 1;
     messageType += 1;
@@ -1086,7 +1143,9 @@ export class EscargotDebugProtocolHandler {
       let prevOffset = offset;
       offset += nextFragment;
 
-      request = requestSendCb.call(this, Uint8Array.from([...message, ...array.slice(prevOffset, offset)]));
+      request = requestSendCb.call(
+          this,
+          Uint8Array.from([...message, ...array.slice(prevOffset, offset)]));
     }
 
     return request;
@@ -1097,44 +1156,46 @@ export class EscargotDebugProtocolHandler {
     this.evalsPending.push(request);
 
     await this.sendString(
-      this.lastBreakpointHit ? SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START :
-      SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_WITHOUT_STOP_8BIT_START,
-      expression, true);
+        this.lastBreakpointHit ?
+            SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_8BIT_START :
+            SP.CLIENT.ESCARGOT_DEBUGGER_EVAL_WITHOUT_STOP_8BIT_START,
+        expression, true);
 
     return request.promise;
   }
 
   public requestScopes(depth: number): Promise<any> {
     if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('scope chain not allowed while app running'));
+      return Promise.reject(
+          new Error('scope chain not allowed while app running'));
     }
 
-    return this.sendRequest(encodeMessage(this.byteConfig, 'BI',
-                                          [SP.CLIENT.ESCARGOT_DEBUGGER_GET_SCOPE_CHAIN,
-                                           depth]));
+    return this.sendRequest(encodeMessage(
+        this.byteConfig, 'BI',
+        [SP.CLIENT.ESCARGOT_DEBUGGER_GET_SCOPE_CHAIN, depth]));
   }
 
-  public requestScopeVariables(stateIndex: number, scopeIndex: number): Promise<any> {
+  public requestScopeVariables(stateIndex: number, scopeIndex: number):
+      Promise<any> {
     if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('scope variables not allowed while app running'));
+      return Promise.reject(
+          new Error('scope variables not allowed while app running'));
     }
 
-    return this.sendRequest(encodeMessage(this.byteConfig, 'BII',
-                                          [SP.CLIENT.ESCARGOT_DEBUGGER_GET_SCOPE_VARIABLES,
-                                           stateIndex,
-                                           scopeIndex]));
-
+    return this.sendRequest(encodeMessage(this.byteConfig, 'BII', [
+      SP.CLIENT.ESCARGOT_DEBUGGER_GET_SCOPE_VARIABLES, stateIndex, scopeIndex
+    ]));
   }
 
   public requestObjectVariables(objectIndex: number): Promise<any> {
     if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('scope variables not allowed while app running'));
+      return Promise.reject(
+          new Error('scope variables not allowed while app running'));
     }
 
-    return this.sendRequest(encodeMessage(this.byteConfig, 'BI',
-                                          [SP.CLIENT.ESCARGOT_DEBUGGER_GET_OBJECT,
-                                           objectIndex]));
-
+    return this.sendRequest(encodeMessage(
+        this.byteConfig, 'BI',
+        [SP.CLIENT.ESCARGOT_DEBUGGER_GET_OBJECT, objectIndex]));
   }
 
   public requestBacktrace(start?: number, levels?: number): Promise<any> {
@@ -1144,18 +1205,17 @@ export class EscargotDebugProtocolHandler {
       levels = 0;
 
     if (this.terminateException) {
-      return Promise.resolve({totalFrames : 0, backtrace: []});
+      return Promise.resolve({totalFrames: 0, backtrace: []});
     }
 
     if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('backtrace not allowed while app running'));
+      return Promise.reject(
+          new Error('backtrace not allowed while app running'));
     }
 
-    return this.sendRequest(encodeMessage(this.byteConfig, 'BIIB',
-                                          [SP.CLIENT.ESCARGOT_DEBUGGER_GET_BACKTRACE,
-                                           start,
-                                           start + levels,
-                                           1]));
+    return this.sendRequest(encodeMessage(
+        this.byteConfig, 'BIIB',
+        [SP.CLIENT.ESCARGOT_DEBUGGER_GET_BACKTRACE, start, start + levels, 1]));
   }
 
   logPacket(description: string, ignorable: boolean = false) {
@@ -1173,12 +1233,14 @@ export class EscargotDebugProtocolHandler {
 
   private resumeExec(code: number): Promise<any> {
     if (!this.lastBreakpointHit) {
-      return Promise.reject(new Error('attempted resume while not at breakpoint'));
+      return Promise.reject(
+          new Error('attempted resume while not at breakpoint'));
     }
 
     this.lastBreakpointHit = undefined;
     this.lastStopType = code;
-    const result = this.sendSimpleRequest(encodeMessage(this.byteConfig, 'B', [code]));
+    const result =
+        this.sendSimpleRequest(encodeMessage(this.byteConfig, 'B', [code]));
 
     if (this.delegate.onResume) {
       this.delegate.onResume();
@@ -1188,9 +1250,9 @@ export class EscargotDebugProtocolHandler {
   }
 
   public sendClientSourceEnd(): Promise<any> {
-     return this.sendSimpleRequest(encodeMessage(this.byteConfig,
-                                                 'B',
-                                                 [SP.CLIENT.ESCARGOT_DEBUGGER_THERE_WAS_NO_SOURCE]));
+    return this.sendSimpleRequest(encodeMessage(
+        this.byteConfig, 'B',
+        [SP.CLIENT.ESCARGOT_DEBUGGER_THERE_WAS_NO_SOURCE]));
   }
 
   public sendClientSource(program): Promise<any> {
@@ -1200,14 +1262,13 @@ export class EscargotDebugProtocolHandler {
 
     if (!program.name) {
       return this.sendClientSourceEnd();
-
     }
 
     let {name: fileName, source: fileSourceCode} = program;
 
-    return this.sendString(SP.CLIENT.ESCARGOT_DEBUGGER_CLIENT_SOURCE_8BIT_START,
-                           fileName + '\0' + fileSourceCode,
-                           true);
+    return this.sendString(
+        SP.CLIENT.ESCARGOT_DEBUGGER_CLIENT_SOURCE_8BIT_START,
+        fileName + '\0' + fileSourceCode, true);
   }
 
   private onWaitForSource(): void {
@@ -1241,10 +1302,12 @@ export class EscargotDebugProtocolHandler {
     return Promise.resolve();
   }
 
-  private submitRequest(request: PendingRequest, simple: boolean = false): boolean {
-    if (!this.debuggerClient!.send(request.data)) return false;
-    if (!simple) this.currentRequest = request;
+  private submitRequest(request: PendingRequest, simple: boolean = false):
+      boolean {
+    if (!this.debuggerClient!.send(request.data))
+      return false;
+    if (!simple)
+      this.currentRequest = request;
     return true;
   }
-
 }

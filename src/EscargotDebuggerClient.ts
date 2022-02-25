@@ -49,7 +49,8 @@ export class EscargotDebuggerClient {
       return this.connectPromise;
     }
 
-    this.socket = new WebSocket(`ws://${this.host}:${this.port}/escargot-debugger`);
+    this.socket =
+        new WebSocket(`ws://${this.host}:${this.port}/escargot-debugger`);
     this.socket.binaryType = 'arraybuffer';
     this.socket.on('message', this.onMessage.bind(this));
     this.socket.on('close', () => this.onClose());

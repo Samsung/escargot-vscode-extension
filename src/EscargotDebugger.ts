@@ -16,28 +16,22 @@
 
 'use strict';
 
-import {
-  DebugSession, InitializedEvent, OutputEvent, Thread, Source,
-  StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,
-} from 'vscode-debugadapter';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import {DebugSession, InitializedEvent, OutputEvent, Thread, Source, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
+import {DebugProtocol} from 'vscode-debugprotocol';
 import * as Fs from 'fs';
 import * as Path from 'path';
 import * as Util from 'util';
 import * as Cp from 'child_process';
 import NodeSSH from 'node-ssh';
-import { IAttachRequestArguments, ILaunchRequestArguments, TemporaryBreakpoint, SourceSendingOptions } from './EscargotDebuggerInterfaces';
-import { EscargotDebuggerClient, EscargotDebuggerOptions } from './EscargotDebuggerClient';
-import {
-  EscargotDebugProtocolDelegate, EscargotDebugProtocolHandler, EscargotMessageScriptParsed,
-  EscargotMessageBreakpointHit, EscargotBacktraceResult, EscargotScopeChain, EscargotScopeVariable,
-} from './EscargotProtocolHandler';
-import { Breakpoint } from './EscargotBreakpoints';
-import { LOG_LEVEL, SOURCE_SENDING_STATES } from './EscargotDebuggerConstants';
+import {IAttachRequestArguments, ILaunchRequestArguments, TemporaryBreakpoint, SourceSendingOptions} from './EscargotDebuggerInterfaces';
+import {EscargotDebuggerClient, EscargotDebuggerOptions} from './EscargotDebuggerClient';
+import {EscargotDebugProtocolDelegate, EscargotDebugProtocolHandler, EscargotMessageScriptParsed, EscargotMessageBreakpointHit, EscargotBacktraceResult, EscargotScopeChain, EscargotScopeVariable,} from './EscargotProtocolHandler';
+import {Breakpoint} from './EscargotBreakpoints';
+import {LOG_LEVEL, SOURCE_SENDING_STATES} from './EscargotDebuggerConstants';
 
 class EscargotDebugSession extends DebugSession {
-
-  // We don't support multiple threads, so we can use a hardcoded ID for the default thread
+  // We don't support multiple threads, so we can use a hardcoded ID for the
+  // default thread
   private static THREAD_ID = 1;
 
   private _attachArgs: IAttachRequestArguments;
@@ -59,9 +53,7 @@ class EscargotDebugSession extends DebugSession {
   protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
     // Runtime supports now threads so just return a default thread.
     response.body = {
-      threads: [
-        new Thread(EscargotDebugSession.THREAD_ID, 'Main Thread')
-      ]
+      threads: [new Thread(EscargotDebugSession.THREAD_ID, 'Main Thread')]
     };
     this.sendResponse(response);
   }
@@ -71,8 +63,8 @@ class EscargotDebugSession extends DebugSession {
    * to interrogate the debug adapter about the features it provides.
    */
   protected initializeRequest(
-    response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments
-  ): void {
+      response: DebugProtocol.InitializeResponse,
+      args: DebugProtocol.InitializeRequestArguments): void {
     // This debug adapter implements the configurationDoneRequest.
     response.body.supportsConfigurationDoneRequest = true;
     response.body.supportsEvaluateForHovers = false;
@@ -80,21 +72,21 @@ class EscargotDebugSession extends DebugSession {
     response.body.supportsDelayedStackTraceLoading = true;
     response.body.supportsSetVariable = false;
 
-    this._sourceSendingOptions = <SourceSendingOptions>{
-      state: SOURCE_SENDING_STATES.NOP
-    };
+    this._sourceSendingOptions =
+        <SourceSendingOptions>{state: SOURCE_SENDING_STATES.NOP};
 
     this.sendResponse(response);
   }
 
   protected configurationDoneRequest(
-    response: DebugProtocol.ConfigurationDoneResponse, args: DebugProtocol.ConfigurationDoneArguments
-  ): void {
+      response: DebugProtocol.ConfigurationDoneResponse,
+      args: DebugProtocol.ConfigurationDoneArguments): void {
     super.configurationDoneRequest(response, args);
   }
 
-  protected attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments): void {
-
+  protected attachRequest(
+      response: DebugProtocol.AttachResponse,
+      args: IAttachRequestArguments): void {
     if (!args.address || args.address === '') {
       this.sendErrorResponse(response, new Error('Must specify an address'));
       return;
@@ -118,7 +110,8 @@ class EscargotDebugSession extends DebugSession {
     this.connectToDebugServer(response, args);
   }
 
-  protected launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
+  protected launchRequest(
+      response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
     if (!args.address || args.address === '') {
       this.sendErrorResponse(response, new Error('Must specify an address'));
       return;
@@ -144,24 +137,37 @@ class EscargotDebugSession extends DebugSession {
       let ssh = new NodeSSH();
 
       if (args.address === 'localhost') {
-        const localProcess = Cp.spawn(args.program, [...programArgs], {cwd, env});
-        localProcess.stdout.on('data', (data: Buffer) => this.sendEvent(new OutputEvent(data + '', 'stdout')));
-        localProcess.stderr.on('data', (data: Buffer) => this.sendEvent(new OutputEvent(data + '', 'stderr')));
-        localProcess.on('exit', () => this.sendEvent(new TerminatedEvent ()));
-        localProcess.on('error', (error: Error) => this.sendEvent(new OutputEvent(error.message + '\n')));
+        const localProcess =
+            Cp.spawn(args.program, [...programArgs], {cwd, env});
+        localProcess.stdout.on(
+            'data',
+            (data: Buffer) =>
+                this.sendEvent(new OutputEvent(data + '', 'stdout')));
+        localProcess.stderr.on(
+            'data',
+            (data: Buffer) =>
+                this.sendEvent(new OutputEvent(data + '', 'stderr')));
+        localProcess.on('exit', () => this.sendEvent(new TerminatedEvent()));
+        localProcess.on(
+            'error',
+            (error: Error) =>
+                this.sendEvent(new OutputEvent(error.message + '\n')));
         this._escargotProcess = localProcess;
       } else {
         ssh.connect({
-          host: args.address,
-          username: 'root',
-          privateKey: `${process.env.HOME}/.ssh/id_rsa`
-        })
-        .then(() => {
-          ssh.execCommand(`${args.program} ${programArgs.join(' ')}`, ).then((result) => {
-            this.log(result.stdout);
-            this.log(result.stderr);
-          });
-        });
+             host: args.address,
+             username: 'root',
+             privateKey: `${process.env.HOME}/.ssh/id_rsa`
+           })
+            .then(() => {
+              ssh.execCommand(
+                     `${args.program} ${programArgs.join(' ')}`,
+                     )
+                  .then((result) => {
+                    this.log(result.stdout);
+                    this.log(result.stderr);
+                  });
+            });
       }
     };
     if (args.program) {
@@ -172,23 +178,30 @@ class EscargotDebugSession extends DebugSession {
     }, 500);
   }
 
-  private connectToDebugServer(response: DebugProtocol.LaunchResponse | DebugProtocol.AttachResponse,
-                               args: ILaunchRequestArguments | IAttachRequestArguments): void {
+  private connectToDebugServer(
+      response: DebugProtocol.LaunchResponse|DebugProtocol.AttachResponse,
+      args: ILaunchRequestArguments|IAttachRequestArguments): void {
     const protocolDelegate = <EscargotDebugProtocolDelegate>{
-      onBreakpointHit: (ref: EscargotMessageBreakpointHit, type: string) => this.onBreakpointHit(ref, type),
+      onBreakpointHit: (ref: EscargotMessageBreakpointHit, type: string) =>
+          this.onBreakpointHit(ref, type),
       onExceptionHit: (data: string) => this.onExceptionHit(data),
-      onScriptParsed: (data: EscargotMessageScriptParsed) => this.onScriptParsed(data),
+      onScriptParsed: (data: EscargotMessageScriptParsed) =>
+          this.onScriptParsed(data),
       onError: (code: number, message: string) => this.onClose(),
-      onOutput: (message: string, category?: string) => this.logOutput(message, category),
-      onWaitForSource: () => this.onWaitForSource((<ILaunchRequestArguments>args).wait_for_source_mode)
+      onOutput: (message: string, category?: string) =>
+          this.logOutput(message, category),
+      onWaitForSource: () => this.onWaitForSource(
+          (<ILaunchRequestArguments>args).wait_for_source_mode)
     };
 
     this._protocolhandler = new EscargotDebugProtocolHandler(
-      protocolDelegate, (message: any, level: number = LOG_LEVEL.VERBOSE) => this.log(message, level)
-    );
+        protocolDelegate,
+        (message: any, level: number = LOG_LEVEL.VERBOSE) =>
+            this.log(message, level));
     this._debuggerClient = new EscargotDebuggerClient(<EscargotDebuggerOptions>{
       delegate: {
-        onMessage: (message: Uint8Array) => this._protocolhandler.onMessage(message),
+        onMessage: (message: Uint8Array) =>
+            this._protocolhandler.onMessage(message),
         onClose: () => this.onClose()
       },
       host: args.address,
@@ -197,19 +210,20 @@ class EscargotDebugSession extends DebugSession {
     this._protocolhandler.debuggerClient = this._debuggerClient;
 
     this._debuggerClient.connect()
-    .then(() => {
-      this.log(`Connected to: ${args.address}:${args.port}`, LOG_LEVEL.SESSION);
-      this.sendResponse(response);
-    })
-    .catch(error => {
-      this.log(error.message, LOG_LEVEL.ERROR);
-      this.sendErrorResponse(response, error);
-    });
+        .then(() => {
+          this.log(
+              `Connected to: ${args.address}:${args.port}`, LOG_LEVEL.SESSION);
+          this.sendResponse(response);
+        })
+        .catch(error => {
+          this.log(error.message, LOG_LEVEL.ERROR);
+          this.sendErrorResponse(response, error);
+        });
   }
 
   protected disconnectRequest(
-    response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments
-  ): void {
+      response: DebugProtocol.DisconnectResponse,
+      args: DebugProtocol.DisconnectArguments): void {
     if (this._escargotProcess) {
       this._escargotProcess.kill();
     }
@@ -220,87 +234,118 @@ class EscargotDebugSession extends DebugSession {
   }
 
 
-  protected continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
+  protected continueRequest(
+      response: DebugProtocol.ContinueResponse,
+      args: DebugProtocol.ContinueArguments): void {
     this._protocolhandler.resume()
-      .then(() => {
-        this.sendResponse(response);
-      })
-      .catch(error => this.sendErrorResponse(response, <Error>error));
+        .then(() => {
+          this.sendResponse(response);
+        })
+        .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
-  protected nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
+  protected nextRequest(
+      response: DebugProtocol.NextResponse,
+      args: DebugProtocol.NextArguments): void {
     this._protocolhandler.stepOver()
-    .then(() => {
-      this.sendResponse(response);
-    })
-    .catch(error => this.sendErrorResponse(response, <Error>error));
+        .then(() => {
+          this.sendResponse(response);
+        })
+        .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
-  protected stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
+  protected stepInRequest(
+      response: DebugProtocol.StepInResponse,
+      args: DebugProtocol.StepInArguments): void {
     this._protocolhandler.stepInto()
-      .then(() => {
-        this.sendResponse(response);
-      })
-      .catch(error => this.sendErrorResponse(response, <Error>error));
+        .then(() => {
+          this.sendResponse(response);
+        })
+        .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
-  protected stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
+  protected stepOutRequest(
+      response: DebugProtocol.StepOutResponse,
+      args: DebugProtocol.StepOutArguments): void {
     this._protocolhandler.stepOut()
-      .then(() => {
-        this.sendResponse(response);
-      })
-      .catch(error => this.sendErrorResponse(response, <Error>error));
+        .then(() => {
+          this.sendResponse(response);
+        })
+        .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
-  protected pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments): void {
+  protected pauseRequest(
+      response: DebugProtocol.PauseResponse,
+      args: DebugProtocol.PauseArguments): void {
     this._protocolhandler.pause()
-    .then(() => {
-      this.sendResponse(response);
-    })
-    .catch(error => this.sendErrorResponse(response, <Error>error));
+        .then(() => {
+          this.sendResponse(response);
+        })
+        .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
   protected async setBreakPointsRequest(
-    response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments
-  ): Promise<void> {
+      response: DebugProtocol.SetBreakpointsResponse,
+      args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
     const filename: string = args.source.name;
-    const vscodeBreakpoints: DebugProtocol.Breakpoint[] = args.breakpoints!.map(b => ({verified: false, line: b.line}));
+    const vscodeBreakpoints: DebugProtocol.Breakpoint[] =
+        args.breakpoints!.map(b => ({verified: false, line: b.line}));
 
     try {
-      const scriptId: number = this._protocolhandler.getScriptIdByName(filename);
-      const activeBps: Breakpoint[] = this._protocolhandler.getActiveBreakpointsByScriptId(scriptId);
+      const scriptId: number =
+          this._protocolhandler.getScriptIdByName(filename);
+      const activeBps: Breakpoint[] =
+          this._protocolhandler.getActiveBreakpointsByScriptId(scriptId);
 
       // Get the new breakpoints.
       const activeBpsLines: number[] = activeBps.map(b => b.line);
-      const newBps: DebugProtocol.Breakpoint[] = vscodeBreakpoints.filter(b => activeBpsLines.indexOf(b.line) === -1);
+      const newBps: DebugProtocol.Breakpoint[] =
+          vscodeBreakpoints.filter(b => activeBpsLines.indexOf(b.line) === -1);
 
-      const newBreakpoints: TemporaryBreakpoint[] = await Promise.all(newBps.map(async (breakpoint, index) => {
-        try {
-          const escargotBreakpoint: Breakpoint = this._protocolhandler.findBreakpoint(scriptId, breakpoint.line);
-          await this._protocolhandler.updateBreakpoint(escargotBreakpoint, true);
-          return <TemporaryBreakpoint>{verified: true, line: breakpoint.line};
-        } catch (error) {
-          this.log(error.message, LOG_LEVEL.ERROR);
-          return <TemporaryBreakpoint>{verified: false, line: breakpoint.line, message: (<Error>error).message};
-        }
-      }));
+      const newBreakpoints: TemporaryBreakpoint[] =
+          await Promise.all(newBps.map(async (breakpoint, index) => {
+            try {
+              const escargotBreakpoint: Breakpoint =
+                  this._protocolhandler.findBreakpoint(
+                      scriptId, breakpoint.line);
+              await this._protocolhandler.updateBreakpoint(
+                  escargotBreakpoint, true);
+              return <TemporaryBreakpoint>{
+                verified: true,
+                line: breakpoint.line
+              };
+            } catch (error) {
+              this.log(error.message, LOG_LEVEL.ERROR);
+              return <TemporaryBreakpoint>{
+                verified: false,
+                line: breakpoint.line,
+                message: (<Error>error).message
+              };
+            }
+          }));
 
       // Get the persisted breakpoints.
       const newBreakpointsLines: number[] = newBreakpoints.map(b => b.line);
-      const persistingBreakpoints: TemporaryBreakpoint[] = vscodeBreakpoints
-                                    .filter(b => newBreakpointsLines.indexOf(b.line) === -1)
-                                    .map(b => ({verified: true, line: b.line}));
+      const persistingBreakpoints: TemporaryBreakpoint[] =
+          vscodeBreakpoints
+              .filter(b => newBreakpointsLines.indexOf(b.line) === -1)
+              .map(b => ({verified: true, line: b.line}));
 
       // Get the removable breakpoints.
-      const vscodeBreakpointsLines: number[] = vscodeBreakpoints.map(b => b.line);
-      const removeBps: Breakpoint[] = activeBps.filter(b => vscodeBreakpointsLines.indexOf(b.line) === -1);
+      const vscodeBreakpointsLines: number[] =
+          vscodeBreakpoints.map(b => b.line);
+      const removeBps: Breakpoint[] =
+          activeBps.filter(b => vscodeBreakpointsLines.indexOf(b.line) === -1);
 
       removeBps.forEach(async b => {
-        const escargotBreakpoint = this._protocolhandler.findBreakpoint(scriptId, b.line);
+        const escargotBreakpoint =
+            this._protocolhandler.findBreakpoint(scriptId, b.line);
         await this._protocolhandler.updateBreakpoint(escargotBreakpoint, false);
       });
 
-      response.body = { breakpoints: [...persistingBreakpoints, ...newBreakpoints] };
+      response.body = {
+        breakpoints: [...persistingBreakpoints, ...newBreakpoints]
+      };
     } catch (error) {
       this.log(error.message, LOG_LEVEL.ERROR);
       this.sendErrorResponse(response, <Error>error);
@@ -311,19 +356,19 @@ class EscargotDebugSession extends DebugSession {
   }
 
   protected async stackTraceRequest(
-    response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments
-  ): Promise<void> {
+      response: DebugProtocol.StackTraceResponse,
+      args: DebugProtocol.StackTraceArguments): Promise<void> {
     try {
       const currentArgs = this._attachArgs || this._launchArgs;
-      const backtraceData: EscargotBacktraceResult = await this._protocolhandler.requestBacktrace(args.startFrame,
-                                                                                                  args.levels);
-      const stk = backtraceData.backtrace.map((f, i) => new StackFrame(
-        f.id,
-        f.function.name,
-        this.pathToSource(`${currentArgs.localRoot}/${this.pathToBasename(f.function.sourceName)}`),
-        f.line,
-        f.column)
-      );
+      const backtraceData: EscargotBacktraceResult =
+          await this._protocolhandler.requestBacktrace(
+              args.startFrame, args.levels);
+      const stk = backtraceData.backtrace.map(
+          (f, i) => new StackFrame(
+              f.id, f.function.name,
+              this.pathToSource(`${currentArgs.localRoot}/${
+                  this.pathToBasename(f.function.sourceName)}`),
+              f.line, f.column));
 
       response.body = {
         stackFrames: stk,
@@ -338,15 +383,13 @@ class EscargotDebugSession extends DebugSession {
   }
 
   protected async evaluateRequest(
-    response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments
-  ): Promise<void> {
+      response: DebugProtocol.EvaluateResponse,
+      args: DebugProtocol.EvaluateArguments): Promise<void> {
     try {
-      const result: string = await this._protocolhandler.evaluate(args.expression, 0);
+      const result: string =
+          await this._protocolhandler.evaluate(args.expression, 0);
 
-      response.body = {
-        result,
-        variablesReference: 0
-      };
+      response.body = {result, variablesReference: 0};
 
       this.sendResponse(response);
     } catch (error) {
@@ -354,112 +397,124 @@ class EscargotDebugSession extends DebugSession {
     }
   }
 
-  protected async scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments
-    ): Promise<void> {
-      try {
-        const btDepth = this._protocolhandler.resolveBacktraceFrameDepthByID(args.frameId);
-        this.log(btDepth, LOG_LEVEL.ERROR);
-        const scopesArray: Array<EscargotScopeChain> = await this._protocolhandler.requestScopes(btDepth);
-        const scopes = new Array<Scope>();
+  protected async scopesRequest(
+      response: DebugProtocol.ScopesResponse,
+      args: DebugProtocol.ScopesArguments): Promise<void> {
+    try {
+      const btDepth =
+          this._protocolhandler.resolveBacktraceFrameDepthByID(args.frameId);
+      this.log(btDepth, LOG_LEVEL.ERROR);
+      const scopesArray: Array<EscargotScopeChain> =
+          await this._protocolhandler.requestScopes(btDepth);
+      const scopes = new Array<Scope>();
 
-        for (const scope of scopesArray) {
-          this._protocolhandler.setScopeChainElementState(scope.scopeID, btDepth);
-          scopes.push(new Scope(scope.name,
-                                scope.scopeID,
-                                scope.expensive));
-        }
-
-        response.body = {
-          scopes: scopes
-        };
-
-        this.sendResponse(response);
-      }  catch (error) {
-        this.log(error.message, LOG_LEVEL.ERROR);
-        this.sendErrorResponse(response, 0, (<Error>error).message);
+      for (const scope of scopesArray) {
+        this._protocolhandler.setScopeChainElementState(scope.scopeID, btDepth);
+        scopes.push(new Scope(scope.name, scope.scopeID, scope.expensive));
       }
+
+      response.body = {scopes: scopes};
+
+      this.sendResponse(response);
+    } catch (error) {
+      this.log(error.message, LOG_LEVEL.ERROR);
+      this.sendErrorResponse(response, 0, (<Error>error).message);
     }
+  }
 
-    protected async variablesRequest(response: DebugProtocol.VariablesResponse,
-                                     args: DebugProtocol.VariablesArguments
-    ): Promise<void> {
-      try {
-        const variables = new Array<DebugProtocol.Variable>();
-        let scopeVariables: Array<EscargotScopeVariable>;
-        const {scopeIndex, stateIndex} = this._protocolhandler.resolveScopeChainElementByID(args.variablesReference);
+  protected async variablesRequest(
+      response: DebugProtocol.VariablesResponse,
+      args: DebugProtocol.VariablesArguments): Promise<void> {
+    try {
+      const variables = new Array<DebugProtocol.Variable>();
+      let scopeVariables: Array<EscargotScopeVariable>;
+      const {scopeIndex, stateIndex} =
+          this._protocolhandler.resolveScopeChainElementByID(
+              args.variablesReference);
 
-        if (stateIndex === -1) {
-          scopeVariables = await this._protocolhandler.requestObjectVariables(scopeIndex);
-        } else {
-          scopeVariables = await this._protocolhandler.requestScopeVariables(stateIndex, scopeIndex);
-        }
-
-        for (const variable of scopeVariables) {
-          let variablesReference = 0;
-          if (variable.objectIndex !== -1) {
-            variablesReference = this._protocolhandler.addScopeVariableObject(variable.objectIndex);
-          }
-
-          variables.push({name: variable.name,
-                          evaluateName: variable.name,
-                          type: variable.type,
-                          value: variable.value,
-                          variablesReference});
-        }
-
-        response.body = {
-          variables: variables
-        };
-        this.sendResponse(response);
-      }  catch (error) {
-        this.log(error.message, LOG_LEVEL.ERROR);
-        this.sendErrorResponse(response, 0, (<Error>error).message);
+      if (stateIndex === -1) {
+        scopeVariables =
+            await this._protocolhandler.requestObjectVariables(scopeIndex);
+      } else {
+        scopeVariables = await this._protocolhandler.requestScopeVariables(
+            stateIndex, scopeIndex);
       }
-    }
 
-    protected customRequest(command: string, response: DebugProtocol.Response, args: any): void {
-      switch (command) {
-        case 'sendSource': {
-          this._sourceSendingOptions.state = SOURCE_SENDING_STATES.IN_PROGRESS;
-          this._protocolhandler.sendClientSource(args.program)
+      for (const variable of scopeVariables) {
+        let variablesReference = 0;
+        if (variable.objectIndex !== -1) {
+          variablesReference = this._protocolhandler.addScopeVariableObject(
+              variable.objectIndex);
+        }
+
+        variables.push({
+          name: variable.name,
+          evaluateName: variable.name,
+          type: variable.type,
+          value: variable.value,
+          variablesReference
+        });
+      }
+
+      response.body = {variables: variables};
+      this.sendResponse(response);
+    } catch (error) {
+      this.log(error.message, LOG_LEVEL.ERROR);
+      this.sendErrorResponse(response, 0, (<Error>error).message);
+    }
+  }
+
+  protected customRequest(
+      command: string, response: DebugProtocol.Response, args: any): void {
+    switch (command) {
+      case 'sendSource': {
+        this._sourceSendingOptions.state = SOURCE_SENDING_STATES.IN_PROGRESS;
+        this._protocolhandler.sendClientSource(args.program)
             .then(() => {
-              this.log('Source has been sent to the engine.', LOG_LEVEL.SESSION);
+              this.log(
+                  'Source has been sent to the engine.', LOG_LEVEL.SESSION);
               this._sourceSendingOptions.state = SOURCE_SENDING_STATES.WAITING;
               if (args.program.isLast) {
-                this._sourceSendingOptions.state = SOURCE_SENDING_STATES.LAST_SENT;
+                this._sourceSendingOptions.state =
+                    SOURCE_SENDING_STATES.LAST_SENT;
               }
               this.sendResponse(response);
             })
             .catch(error => {
               this.log(error.message, LOG_LEVEL.ERROR);
               this._sourceSendingOptions.state = SOURCE_SENDING_STATES.NOP;
-              this.sendErrorResponse(response, <Error>error, ErrorDestination.User);
+              this.sendErrorResponse(
+                  response, <Error>error, ErrorDestination.User);
             });
-          return;
-        }
-        default:
-          super.customRequest(command, response, args);
+        return;
       }
+      default:
+        super.customRequest(command, response, args);
     }
+  }
 
   // Overrides.
   protected dispatchRequest(request: DebugProtocol.Request): void {
-    const log = `-> ${request.command}Request\n${Util.inspect(request, { depth: Infinity })}\n`;
+    const log = `-> ${request.command}Request\n${
+        Util.inspect(request, {depth: Infinity})}\n`;
     this.log(log, LOG_LEVEL.SESSION);
 
     super.dispatchRequest(request);
   }
 
   public sendResponse(response: DebugProtocol.Response): void {
-    const log = `<- ${response.command}Response\n${Util.inspect(response, { depth: Infinity })}\n`;
+    const log = `<- ${response.command}Response\n${
+        Util.inspect(response, {depth: Infinity})}\n`;
     this.log(log, LOG_LEVEL.SESSION);
 
     super.sendResponse(response);
   }
 
-  public sendEvent(event: DebugProtocol.Event, bypassLog: boolean = false): void {
+  public sendEvent(event: DebugProtocol.Event, bypassLog: boolean = false):
+      void {
     if (!bypassLog) {
-      const log = `<- ${event.event}Event\n${Util.inspect(event, { depth: Infinity })}\n`;
+      const log =
+          `<- ${event.event}Event\n${Util.inspect(event, {depth: Infinity})}\n`;
       this.log(log, LOG_LEVEL.SESSION);
     }
 
@@ -467,22 +522,20 @@ class EscargotDebugSession extends DebugSession {
   }
 
   protected sendErrorResponse(
-    response: DebugProtocol.Response,
-    error: Error,
-    dest?: ErrorDestination
-  ): void;
+      response: DebugProtocol.Response, error: Error,
+      dest?: ErrorDestination): void;
 
   protected sendErrorResponse(
-    response: DebugProtocol.Response,
-    codeOrMessage: number | DebugProtocol.Message,
-    format?: string,
-    variables?: any,
-    dest?: ErrorDestination
-  ): void;
+      response: DebugProtocol.Response,
+      codeOrMessage: number|DebugProtocol.Message, format?: string,
+      variables?: any, dest?: ErrorDestination): void;
 
   protected sendErrorResponse(response: DebugProtocol.Response) {
     if (arguments[1] instanceof Error) {
-      const error = arguments[1] as Error & {code?: number | string; errno?: number};
+      const error = arguments[1] as Error & {
+        code?: number|string;
+        errno?: number
+      };
       const dest = arguments[2] as ErrorDestination;
 
       let code: number;
@@ -497,13 +550,15 @@ class EscargotDebugSession extends DebugSession {
 
       super.sendErrorResponse(response, code, error.message, dest);
     } else {
-      super.sendErrorResponse(response, arguments[1], arguments[2], arguments[3], arguments[4]);
+      super.sendErrorResponse(
+          response, arguments[1], arguments[2], arguments[3], arguments[4]);
     }
   }
 
   // Helper functions for event handling
 
-  private onBreakpointHit(breakpointRef: EscargotMessageBreakpointHit, stopType: string): void {
+  private onBreakpointHit(
+      breakpointRef: EscargotMessageBreakpointHit, stopType: string): void {
     this.log('onBreakpointHit', LOG_LEVEL.SESSION);
 
     this.sendEvent(new StoppedEvent(stopType, EscargotDebugSession.THREAD_ID));
@@ -512,7 +567,8 @@ class EscargotDebugSession extends DebugSession {
   private onExceptionHit(data: string): void {
     this.log('onExceptionHit', LOG_LEVEL.SESSION);
 
-    this.sendEvent(new StoppedEvent('exception', EscargotDebugSession.THREAD_ID, data));
+    this.sendEvent(
+        new StoppedEvent('exception', EscargotDebugSession.THREAD_ID, data));
   }
 
   private onScriptParsed(data: EscargotMessageScriptParsed): void {
@@ -527,9 +583,11 @@ class EscargotDebugSession extends DebugSession {
     if (this._sourceSendingOptions.state === SOURCE_SENDING_STATES.NOP) {
       this.sendEvent(new Event('readSources', mode));
       this._sourceSendingOptions.state = SOURCE_SENDING_STATES.WAITING;
-    } else if (this._sourceSendingOptions.state === SOURCE_SENDING_STATES.WAITING) {
+    } else if (
+        this._sourceSendingOptions.state === SOURCE_SENDING_STATES.WAITING) {
       this.sendEvent(new Event('sendNextSource'));
-    } else if (this._sourceSendingOptions.state === SOURCE_SENDING_STATES.LAST_SENT) {
+    } else if (
+        this._sourceSendingOptions.state === SOURCE_SENDING_STATES.LAST_SENT) {
       if (!this._sourceSendingOptions.contextReset) {
         this._sourceSendingOptions.state = SOURCE_SENDING_STATES.NOP;
         this._protocolhandler.sendClientSourceEnd();
@@ -549,14 +607,12 @@ class EscargotDebugSession extends DebugSession {
     const src = this._protocolhandler.getSource(data.id);
     const currentArgs = this._attachArgs || this._launchArgs;
     if (src !== '') {
-      const path = Path.join(`${currentArgs.localRoot}`, `${this.pathToBasename(data.name)}`);
+      const path = Path.join(
+          `${currentArgs.localRoot}`, `${this.pathToBasename(data.name)}`);
       const write = c => Fs.writeSync(Fs.openSync(path, 'w'), c);
 
       if (Fs.existsSync(path)) {
-        const content = Fs.readFileSync(path, {
-          encoding: 'utf8',
-          flag: 'r'
-        });
+        const content = Fs.readFileSync(path, {encoding: 'utf8', flag: 'r'});
 
         if (content !== src) {
           write(src);
@@ -573,7 +629,8 @@ class EscargotDebugSession extends DebugSession {
   }
 
   private pathToBasename(path: string): string {
-    if (path === '' || path === undefined) path = 'debug_eval.js';
+    if (path === '' || path === undefined)
+      path = 'debug_eval.js';
     return Path.basename(path);
   }
 
@@ -581,14 +638,16 @@ class EscargotDebugSession extends DebugSession {
     if (level === this._debugLog || this._debugLog === LOG_LEVEL.VERBOSE) {
       switch (typeof message) {
         case 'object':
-          message = Util.inspect(message, { depth: Infinity });
+          message = Util.inspect(message, {depth: Infinity});
           break;
         default:
           message = message.toString();
           break;
       }
 
-      this.sendEvent(new OutputEvent(`[${LOG_LEVEL[level]}] ${message}\n`, 'console'), true);
+      this.sendEvent(
+          new OutputEvent(`[${LOG_LEVEL[level]}] ${message}\n`, 'console'),
+          true);
     }
   }
 
