@@ -20,6 +20,8 @@ import {EscargotDebuggerClient} from './EscargotDebuggerClient';
 import {LOG_LEVEL} from './EscargotDebuggerConstants';
 import * as SP from './EscargotProtocolConstants';
 import {assembleUint16Arrays, assembleUint8Arrays, ByteConfig, createArrayFromString, createStringFromArray, decodeMessage, encodeMessage} from './EscargotUtils';
+import {Source} from 'vscode-debugadapter';
+import * as Path from 'path';
 
 export type Pointer = string;
 export type ByteCodeOffset = number;
@@ -44,6 +46,7 @@ export interface EscargotDebugProtocolDelegate {
   onBacktrace?(backtrace: EscargotBacktraceResult): void;
   onBreakpointHit?
       (message: EscargotMessageBreakpointHit, stopType: string): void;
+  onConnected?(): void;
   onExceptionHit?(message: string): void;
   onEvalResult?(result: string): void;
   onError?(code: number, message: string): void;
@@ -111,6 +114,7 @@ interface LineFunctionMap {
 interface ParsedSource {
   name?: string;
   source?: string;
+  reference?: Source;
 }
 
 interface StopTypeMap {
@@ -180,6 +184,7 @@ export class EscargotDebugProtocolHandler {
   private version: number = 0;
   private functionMap: ProtocolFunctionMap;
   private scopeNameMap: ScopeNameMap;
+  private localRoot: string;
 
   // first element is a dummy because sources is 1-indexed
   private sources: Array<ParsedSource> = [{}];
@@ -222,8 +227,9 @@ export class EscargotDebugProtocolHandler {
   private stopTypeMap: StopTypeMap;
   private lastStopType: number;
 
-  constructor(delegate: EscargotDebugProtocolDelegate, log?: LoggerFunction) {
+  constructor(delegate: EscargotDebugProtocolDelegate, localRoot: string, log?: LoggerFunction) {
     this.delegate = delegate;
+    this.localRoot = localRoot;
     this.log = log || <any>(() => {});
     this.backtraceFrames = new Map<number, number>();
     this.scopeList = new Map<number, EscargotScopeChainElement>();
@@ -288,7 +294,7 @@ export class EscargotDebugProtocolHandler {
       [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION]: this.onException,
       [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION_BACKTRACE]:
           this.onBacktrace,
-      [SP.SERVER.ESCARGOT_DEBUGGER_WAITWAIT_FOR_SOURCE]: this.onWaitForSource,
+      [SP.SERVER.ESCARGOT_DEBUGGER_WAIT_FOR_SOURCE]: this.onWaitForSource,
     };
 
     this.scopeNameMap = {
@@ -375,6 +381,13 @@ export class EscargotDebugProtocolHandler {
     return '';
   }
 
+  public getReference(scriptId: number): Source {
+    if (scriptId < this.sources.length) {
+      return this.sources[scriptId].reference;
+    }
+    return new Source('');
+  }
+
   private decodeMessage(format: string, message: Uint8Array, offset: number):
       any {
     return decodeMessage(this.byteConfig, format, message, offset);
@@ -409,6 +422,10 @@ export class EscargotDebugProtocolHandler {
     if (this.byteConfig.pointerSize !== 4 &&
         this.byteConfig.pointerSize !== 8) {
       this.abort(`unsupported pointer size: ${this.byteConfig.pointerSize}`);
+    }
+
+    if (this.delegate.onConnected) {
+      this.delegate.onConnected();
     }
   }
 
@@ -527,14 +544,20 @@ export class EscargotDebugProtocolHandler {
   }
 
   private onFileNameEnd(str: string): void {
-    if (str === 'eval input') {
+    let path = str;
+
+    if (str === 'eval input' || str == '') {
       str = 'eval_' + this.nextScriptID + '.js';
+      path = '';
+    } else if (str[0] != '/') {
+      path = Path.join(this.localRoot, str);
     }
 
     this.sourceName = str;
     this.sources[this.nextScriptID] = {
-      name: this.sourceName,
+      name: str,
       source: this.source,
+      reference: new Source(Path.basename(str), path, path ? 0 : this.nextScriptID),
     };
 
     if (this.delegate.onScriptParsed) {
@@ -1017,11 +1040,11 @@ export class EscargotDebugProtocolHandler {
     return this.lastBreakpointHit;
   }
 
-  public getScriptIdByName(name: string): number {
-    const index = this.sources.findIndex(s => s.name && s.name.endsWith(name));
+  public getScriptIdByPath(path: string): number {
+    const index = this.sources.findIndex(s => s.reference && s.reference.path === path);
     if (index > 0)
       return index;
-    throw new Error(`no such source ${name}`);
+    throw new Error(`Source '${path}' has not parsed yet`);
   }
 
   public getActiveBreakpoint(breakpointId: number): Breakpoint {
