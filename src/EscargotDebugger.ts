@@ -16,10 +16,8 @@
 
 'use strict';
 
-import {DebugSession, InitializedEvent, OutputEvent, Thread, Source, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
+import {DebugSession, InitializedEvent, OutputEvent, LoadedSourceEvent, Thread, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
 import {DebugProtocol} from 'vscode-debugprotocol';
-import * as Fs from 'fs';
-import * as Path from 'path';
 import * as Util from 'util';
 import * as Cp from 'child_process';
 import NodeSSH from 'node-ssh';
@@ -184,18 +182,21 @@ class EscargotDebugSession extends DebugSession {
     const protocolDelegate = <EscargotDebugProtocolDelegate>{
       onBreakpointHit: (ref: EscargotMessageBreakpointHit, type: string) =>
           this.onBreakpointHit(ref, type),
+      onConnected: () => this.onConnected(),
+      onError: (code: number, message: string) => this.onClose(),
       onExceptionHit: (data: string) => this.onExceptionHit(data),
       onScriptParsed: (data: EscargotMessageScriptParsed) =>
           this.onScriptParsed(data),
-      onError: (code: number, message: string) => this.onClose(),
       onOutput: (message: string, category?: string) =>
           this.logOutput(message, category),
       onWaitForSource: () => this.onWaitForSource(
           (<ILaunchRequestArguments>args).wait_for_source_mode)
     };
 
+    const currentArgs = this._attachArgs || this._launchArgs;
     this._protocolhandler = new EscargotDebugProtocolHandler(
         protocolDelegate,
+        currentArgs.localRoot,
         (message: any, level: number = LOG_LEVEL.VERBOSE) =>
             this.log(message, level));
     this._debuggerClient = new EscargotDebuggerClient(<EscargotDebuggerOptions>{
@@ -284,16 +285,30 @@ class EscargotDebugSession extends DebugSession {
         .catch(error => this.sendErrorResponse(response, <Error>error));
   }
 
+  protected sourceRequest(
+      response: DebugProtocol.SourceResponse,
+      args: DebugProtocol.SourceArguments,
+      request?: DebugProtocol.Request): void {
+
+    response.body = {
+      content: this._protocolhandler.getSource(args.sourceReference)
+    };
+
+    this.sendResponse(response);
+  }
+
   protected async setBreakPointsRequest(
       response: DebugProtocol.SetBreakpointsResponse,
       args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
-    const filename: string = args.source.name;
+    var scriptId: number = args.source.sourceReference || 0;
     const vscodeBreakpoints: DebugProtocol.Breakpoint[] =
         args.breakpoints!.map(b => ({verified: false, line: b.line}));
 
     try {
-      const scriptId: number =
-          this._protocolhandler.getScriptIdByName(filename);
+      if (scriptId == 0) {
+        scriptId = this._protocolhandler.getScriptIdByPath(args.source.path);
+      }
+
       const activeBps: Breakpoint[] =
           this._protocolhandler.getActiveBreakpointsByScriptId(scriptId);
 
@@ -348,8 +363,10 @@ class EscargotDebugSession extends DebugSession {
       };
     } catch (error) {
       this.log(error.message, LOG_LEVEL.ERROR);
-      this.sendErrorResponse(response, <Error>error);
-      return;
+
+      response.body = {
+        breakpoints: vscodeBreakpoints
+      };
     }
 
     this.sendResponse(response);
@@ -359,15 +376,13 @@ class EscargotDebugSession extends DebugSession {
       response: DebugProtocol.StackTraceResponse,
       args: DebugProtocol.StackTraceArguments): Promise<void> {
     try {
-      const currentArgs = this._attachArgs || this._launchArgs;
       const backtraceData: EscargotBacktraceResult =
           await this._protocolhandler.requestBacktrace(
               args.startFrame, args.levels);
       const stk = backtraceData.backtrace.map(
           (f, i) => new StackFrame(
               f.id, f.function.name,
-              this.pathToSource(`${currentArgs.localRoot}/${
-                  this.pathToBasename(f.function.sourceName)}`),
+              this._protocolhandler.getReference(f.function.scriptId),
               f.line, f.column));
 
       response.body = {
@@ -403,7 +418,6 @@ class EscargotDebugSession extends DebugSession {
     try {
       const btDepth =
           this._protocolhandler.resolveBacktraceFrameDepthByID(args.frameId);
-      this.log(btDepth, LOG_LEVEL.ERROR);
       const scopesArray: Array<EscargotScopeChain> =
           await this._protocolhandler.requestScopes(btDepth);
       const scopes = new Array<Scope>();
@@ -595,6 +609,12 @@ class EscargotDebugSession extends DebugSession {
     }
   }
 
+  private onConnected(): void {
+    this.log('onConnected', LOG_LEVEL.SESSION);
+
+    this.sendEvent(new InitializedEvent());
+  }
+
   private onClose(): void {
     this.log('onClose', LOG_LEVEL.SESSION);
 
@@ -604,34 +624,9 @@ class EscargotDebugSession extends DebugSession {
   // General helper functions
 
   private handleSource(data: EscargotMessageScriptParsed): void {
-    const src = this._protocolhandler.getSource(data.id);
-    const currentArgs = this._attachArgs || this._launchArgs;
-    if (src !== '') {
-      const path = Path.join(
-          `${currentArgs.localRoot}`, `${this.pathToBasename(data.name)}`);
-      const write = c => Fs.writeSync(Fs.openSync(path, 'w'), c);
-
-      if (Fs.existsSync(path)) {
-        const content = Fs.readFileSync(path, {encoding: 'utf8', flag: 'r'});
-
-        if (content !== src) {
-          write(src);
-        }
-      } else {
-        write(src);
-      }
-      this.sendEvent(new InitializedEvent());
-    }
-  }
-
-  private pathToSource(path): Source {
-    return new Source(this.pathToBasename(path), path);
-  }
-
-  private pathToBasename(path: string): string {
-    if (path === '' || path === undefined)
-      path = 'debug_eval.js';
-    return Path.basename(path);
+    if (this._protocolhandler.getReference(data.id).sourceReference)
+      this.sendEvent(new LoadedSourceEvent('new', this._protocolhandler.getReference(data.id)));
+    this.sendEvent(new InitializedEvent());
   }
 
   private log(message: any, level: number = LOG_LEVEL.VERBOSE): void {
