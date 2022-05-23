@@ -16,7 +16,7 @@
 
 'use strict';
 
-import {DebugSession, InitializedEvent, OutputEvent, LoadedSourceEvent, Thread, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
+import {DebugSession, InitializedEvent, OutputEvent, Thread, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import * as Util from 'util';
 import * as Cp from 'child_process';
@@ -300,14 +300,11 @@ class EscargotDebugSession extends DebugSession {
   protected async setBreakPointsRequest(
       response: DebugProtocol.SetBreakpointsResponse,
       args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
-    var scriptId: number = args.source.sourceReference || 0;
     const vscodeBreakpoints: DebugProtocol.Breakpoint[] =
         args.breakpoints!.map(b => ({verified: false, line: b.line}));
 
     try {
-      if (scriptId == 0) {
-        scriptId = this._protocolhandler.getScriptIdByPath(args.source.path);
-      }
+      let scriptId: number = this._protocolhandler.getScriptIdByPath(args.source.path);
 
       const activeBps: Breakpoint[] =
           this._protocolhandler.getActiveBreakpointsByScriptId(scriptId);
@@ -624,8 +621,6 @@ class EscargotDebugSession extends DebugSession {
   // General helper functions
 
   private handleSource(data: EscargotMessageScriptParsed): void {
-    if (this._protocolhandler.getReference(data.id).sourceReference)
-      this.sendEvent(new LoadedSourceEvent('new', this._protocolhandler.getReference(data.id)));
     this.sendEvent(new InitializedEvent());
   }
 

@@ -22,6 +22,8 @@ import * as SP from './EscargotProtocolConstants';
 import {assembleUint16Arrays, assembleUint8Arrays, ByteConfig, createArrayFromString, createStringFromArray, decodeMessage, encodeMessage} from './EscargotUtils';
 import {Source} from 'vscode-debugadapter';
 import * as Path from 'path';
+import * as Fs from 'fs';
+import * as Crypto from 'crypto';
 
 export type Pointer = string;
 export type ByteCodeOffset = number;
@@ -545,19 +547,31 @@ export class EscargotDebugProtocolHandler {
 
   private onFileNameEnd(str: string): void {
     let path = str;
+    let sourceReference = this.nextScriptID;
 
-    if (str === 'eval input' || str == '') {
-      str = 'eval_' + this.nextScriptID + '.js';
-      path = '';
-    } else if (str[0] != '/') {
-      path = Path.join(this.localRoot, str);
+    if (str === 'eval code' || str.length == 0) {
+      str = `eval_${str.length}_${Crypto.createHash('md5').update(str).digest('hex')}.js`;
+      path = str;
+    } else {
+      if (str[0] != '/') {
+        path = Path.join(this.localRoot, str);
+      }
+
+      try {
+        if (Fs.readFileSync(path, {encoding: 'utf8', flag: 'r'}) === this.source) {
+          /* File matches to a real file. */
+          sourceReference = 0;
+        }
+      } catch {
+        /* Ignore all errors. */
+      }
     }
 
     this.sourceName = str;
     this.sources[this.nextScriptID] = {
       name: str,
       source: this.source,
-      reference: new Source(Path.basename(str), path, path ? 0 : this.nextScriptID),
+      reference: new Source(Path.basename(str), path, sourceReference),
     };
 
     if (this.delegate.onScriptParsed) {
@@ -1069,7 +1083,7 @@ export class EscargotDebugProtocolHandler {
 
   public getPossibleFunctionBreakpointsByScriptId(scriptId: number):
       Breakpoint[] {
-    if (scriptId <= 0 || scriptId >= this.lineLists.length) {
+    if (scriptId <= 0 || scriptId >= this.sources.length) {
       throw new Error('invalid script id');
     }
 
@@ -1085,7 +1099,7 @@ export class EscargotDebugProtocolHandler {
 
   public findBreakpoint(scriptId: number, line: number, column: number = 0):
       Breakpoint {
-    if (scriptId <= 0 || scriptId >= this.lineLists.length) {
+    if (scriptId <= 0 || scriptId >= this.sources.length) {
       throw new Error('invalid script id');
     }
 
