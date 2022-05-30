@@ -16,16 +16,24 @@
 
 'use strict';
 
-import {DebugSession, InitializedEvent, OutputEvent, Thread, StoppedEvent, StackFrame, TerminatedEvent, ErrorDestination, Scope, Event,} from 'vscode-debugadapter';
+import {DebugSession, InitializedEvent, OutputEvent, BreakpointEvent, TerminatedEvent, Event, Thread, StoppedEvent, StackFrame, ErrorDestination, Scope,} from 'vscode-debugadapter';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import * as Util from 'util';
 import * as Cp from 'child_process';
 import NodeSSH from 'node-ssh';
-import {IAttachRequestArguments, ILaunchRequestArguments, TemporaryBreakpoint, SourceSendingOptions} from './EscargotDebuggerInterfaces';
+import {IAttachRequestArguments, ILaunchRequestArguments, SourceSendingOptions} from './EscargotDebuggerInterfaces';
 import {EscargotDebuggerClient, EscargotDebuggerOptions} from './EscargotDebuggerClient';
 import {EscargotDebugProtocolDelegate, EscargotDebugProtocolHandler, EscargotMessageScriptParsed, EscargotMessageBreakpointHit, EscargotBacktraceResult, EscargotScopeChain, EscargotScopeVariable,} from './EscargotProtocolHandler';
 import {Breakpoint} from './EscargotBreakpoints';
 import {LOG_LEVEL, SOURCE_SENDING_STATES} from './EscargotDebuggerConstants';
+
+class UserBreakpoints {
+  lineToId: Map<number, number>;
+
+  constructor() {
+    this.lineToId = new Map<number, number>();
+  }
+}
 
 class EscargotDebugSession extends DebugSession {
   // We don't support multiple threads, so we can use a hardcoded ID for the
@@ -39,6 +47,8 @@ class EscargotDebugSession extends DebugSession {
   private _debuggerClient: EscargotDebuggerClient;
   private _protocolhandler: EscargotDebugProtocolHandler;
   private _sourceSendingOptions: SourceSendingOptions;
+  private _userBreakpoints: Map<String, UserBreakpoints>;
+  private _nextUserBreakpointId: number;
 
   public constructor() {
     super();
@@ -46,6 +56,8 @@ class EscargotDebugSession extends DebugSession {
     // The debugger uses zero-based lines and columns.
     this.setDebuggerLinesStartAt1(false);
     this.setDebuggerColumnsStartAt1(false);
+    this._userBreakpoints = new Map<String, UserBreakpoints>();
+    this._nextUserBreakpointId = 0;
   }
 
   protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
@@ -300,71 +312,58 @@ class EscargotDebugSession extends DebugSession {
   protected async setBreakPointsRequest(
       response: DebugProtocol.SetBreakpointsResponse,
       args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
-    const vscodeBreakpoints: DebugProtocol.Breakpoint[] =
-        args.breakpoints!.map(b => ({verified: false, line: b.line}));
+    const sourceBreakpoints: DebugProtocol.SourceBreakpoint[] = args.breakpoints;
+    const updatedBreakpoints: DebugProtocol.Breakpoint[] =
+          sourceBreakpoints.map(b => ({verified: false, line: b.line}));
+    const handler = this._protocolhandler;
+
+    const currentUserBreakpoints: UserBreakpoints = this._userBreakpoints.get(args.source.path);
+    const newUserBreakpoints: UserBreakpoints = new UserBreakpoints;
+    this._userBreakpoints.set(args.source.path, newUserBreakpoints);
+
+    for (let breakpoint of updatedBreakpoints) {
+      let id;
+
+      if (currentUserBreakpoints) {
+        id = currentUserBreakpoints.lineToId.get(breakpoint.line);
+      }
+
+      if (!id) {
+        id = ++this._nextUserBreakpointId;
+      }
+
+      breakpoint.id = id;
+      newUserBreakpoints.lineToId.set(breakpoint.line, id);
+    }
 
     try {
       let scriptId: number = this._protocolhandler.getScriptIdByPath(args.source.path);
+      const tasks: Promise<void>[] = [];
 
-      const activeBps: Breakpoint[] =
-          this._protocolhandler.getActiveBreakpointsByScriptId(scriptId);
+      for (let index:number = 0; index < sourceBreakpoints.length; index++) {
+        const availableBreakpoints: Breakpoint[] =
+            handler.getAllLineBreakpoints(scriptId, sourceBreakpoints[index].line);
 
-      // Get the new breakpoints.
-      const activeBpsLines: number[] = activeBps.map(b => b.line);
-      const newBps: DebugProtocol.Breakpoint[] =
-          vscodeBreakpoints.filter(b => activeBpsLines.indexOf(b.line) === -1);
+        for (const breakpoint of availableBreakpoints) {
+          if (breakpoint.activeIndex != -1) {
+            updatedBreakpoints[index].verified = true;
+          } else {
+            tasks.push(async function() {
+              await handler.updateBreakpoint(breakpoint, true);
+              updatedBreakpoints[index].verified = true;
+            }());
+          }
+        }
+      }
 
-      const newBreakpoints: TemporaryBreakpoint[] =
-          await Promise.all(newBps.map(async (breakpoint, index) => {
-            try {
-              const escargotBreakpoint: Breakpoint =
-                  this._protocolhandler.findBreakpoint(
-                      scriptId, breakpoint.line);
-              await this._protocolhandler.updateBreakpoint(
-                  escargotBreakpoint, true);
-              return <TemporaryBreakpoint>{
-                verified: true,
-                line: breakpoint.line
-              };
-            } catch (error) {
-              this.log(error.message, LOG_LEVEL.ERROR);
-              return <TemporaryBreakpoint>{
-                verified: false,
-                line: breakpoint.line,
-                message: (<Error>error).message
-              };
-            }
-          }));
-
-      // Get the persisted breakpoints.
-      const newBreakpointsLines: number[] = newBreakpoints.map(b => b.line);
-      const persistingBreakpoints: TemporaryBreakpoint[] =
-          vscodeBreakpoints
-              .filter(b => newBreakpointsLines.indexOf(b.line) === -1)
-              .map(b => ({verified: true, line: b.line}));
-
-      // Get the removable breakpoints.
-      const vscodeBreakpointsLines: number[] =
-          vscodeBreakpoints.map(b => b.line);
-      const removeBps: Breakpoint[] =
-          activeBps.filter(b => vscodeBreakpointsLines.indexOf(b.line) === -1);
-
-      removeBps.forEach(async b => {
-        const escargotBreakpoint =
-            this._protocolhandler.findBreakpoint(scriptId, b.line);
-        await this._protocolhandler.updateBreakpoint(escargotBreakpoint, false);
-      });
-
-      response.body = {
-        breakpoints: [...persistingBreakpoints, ...newBreakpoints]
-      };
+      await Promise.all(tasks);
     } catch (error) {
       this.log(error.message, LOG_LEVEL.ERROR);
-
-      response.body = {
-        breakpoints: vscodeBreakpoints
-      };
     }
+
+    response.body = {
+      breakpoints: updatedBreakpoints
+    };
 
     this.sendResponse(response);
   }
@@ -620,8 +619,42 @@ class EscargotDebugSession extends DebugSession {
 
   // General helper functions
 
-  private handleSource(data: EscargotMessageScriptParsed): void {
-    this.sendEvent(new InitializedEvent());
+  private async handleSource(data: EscargotMessageScriptParsed): Promise<void> {
+    try {
+      const userBreakpoints: UserBreakpoints = this._userBreakpoints.get(data.source.path);
+
+      if (userBreakpoints) {
+        const handler = this._protocolhandler;
+
+        for (let lineAndId of userBreakpoints.lineToId) {
+          let line = lineAndId[0];
+          const availableBreakpoints: Breakpoint[] =
+            handler.getAllLineBreakpoints(data.id, line);
+
+          let verified: boolean = false;
+
+          if (availableBreakpoints) {
+            const tasks: Promise<void>[] = [];
+
+            for (const breakpoint of availableBreakpoints) {
+              if (breakpoint.activeIndex == -1) {
+                tasks.push(async function() {
+                  await handler.updateBreakpoint(breakpoint, true);
+                  verified = true;
+                }());
+              }
+            }
+
+            await Promise.all(tasks);
+          }
+
+          let bkpt: DebugProtocol.Breakpoint = { id: lineAndId[1], verified, line, source: data.source };
+          this.sendEvent(new BreakpointEvent('changed', bkpt));
+        }
+      }
+    } finally {
+      data.breakpointsHandled();
+    }
   }
 
   private log(message: any, level: number = LOG_LEVEL.VERBOSE): void {
