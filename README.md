@@ -111,6 +111,7 @@ In case of Escargot Debug it looks like this:
       "program": "absolue/path/to/escargot",
       "address": "localhost",
       "localRoot": "${workspaceRoot}",
+      "wait_for_source_mode": "quickpicklist",
       "debugLog": 0,
       "args": [
           "--start-debug-server",
@@ -129,6 +130,10 @@ These configuration options are required. Manifest:
 absolute path to executable (e.g.:/path/to/escargot/folder/escargot)
 - `address`: IP address on which the server listening. Default is `localhost`
 - `localRoot`: The local source root directoy, most cases this is the `${workspaceRoot}`
+- `wait_for_source_mode`: The type of processing input file(s)
+    - quickpicklist: Select files from a list (files of escargot-test folder), they are executed in the same order they are selected
+    - xy.txt: Files will be executed in the same order as they are in a custom txt file (filename can be anything)
+    - If this parameter isnt there, please add the filename you would like to run in the "args" section, and only that file will be executed
 - `debugLog`: The type of the debug log, you can choose from 0 to 4:
     - 0: none
     - 1: Error (show errors only)
