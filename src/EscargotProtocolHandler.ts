@@ -56,6 +56,7 @@ export interface EscargotDebugProtocolDelegate {
   onScriptParsed?(message: EscargotMessageScriptParsed): void;
   onOutput?(message: string, category?: string): void;
   onWaitForSource?(): void;
+  onWaitingAfterPending?(): void;
 }
 
 export interface EscargotMessageSource {
@@ -65,8 +66,8 @@ export interface EscargotMessageSource {
 
 export interface EscargotMessageScriptParsed {
   id: number;
-  name: string;
-  lineCount: number;
+  source: Source;
+  breakpointsHandled: () => void;
 }
 
 export interface EscargotMessageBreakpointHit {
@@ -204,6 +205,7 @@ export class EscargotDebugProtocolHandler {
   private isFunction: boolean = false;
   private functions: FunctionMap = {};
   private newFunctions: FunctionMap = {};
+  private breakpointsInserted: Promise<void>;
   private backtraceData:
       EscargotBacktraceResult = {totalFrames: 0, backtrace: []};
   private backtraceFrames: Map<number, number>;
@@ -297,6 +299,8 @@ export class EscargotDebugProtocolHandler {
       [SP.SERVER.ESCARGOT_DEBUGGER_MESSAGE_EXCEPTION_BACKTRACE]:
           this.onBacktrace,
       [SP.SERVER.ESCARGOT_DEBUGGER_WAIT_FOR_SOURCE]: this.onWaitForSource,
+      [SP.SERVER.ESCARGOT_DEBUGGER_WAITING_AFTER_PENDING]:
+          this.onWaitingAfterPending,
     };
 
     this.scopeNameMap = {
@@ -353,21 +357,17 @@ export class EscargotDebugProtocolHandler {
     return this.resumeExec(SP.CLIENT.ESCARGOT_DEBUGGER_CONTINUE);
   }
 
-  public getPossibleBreakpoints(
-      scriptId: number, startLine: number,
-      endLine?: number): Array<Breakpoint> {
+  public getAllLineBreakpoints(
+      scriptId: number, line: number): Array<Breakpoint> {
     const array = [];
-    const lineList = this.lineLists[scriptId];
-    for (const line in lineList) {
-      const linenum = Number(line);
-      if (linenum >= startLine) {
-        if (!endLine || linenum <= endLine) {
-          for (const func of lineList[line]) {
-            array.push(func.lines[line]);
-          }
-        }
+    const funcList = this.lineLists[scriptId][line];
+
+    if (funcList) {
+      for (const func of funcList) {
+        array.push(func.lines[line]);
       }
     }
+
     return array;
   }
 
@@ -425,6 +425,9 @@ export class EscargotDebugProtocolHandler {
         this.byteConfig.pointerSize !== 8) {
       this.abort(`unsupported pointer size: ${this.byteConfig.pointerSize}`);
     }
+
+    this.sendSimpleRequest(encodeMessage(
+      this.byteConfig, 'BB', [SP.CLIENT.ESCARGOT_DEBUGGER_PENDING_CONFIG, 1]));
 
     if (this.delegate.onConnected) {
       this.delegate.onConnected();
@@ -486,9 +489,22 @@ export class EscargotDebugProtocolHandler {
         }
       }
     }
+
+    let breakpointsHandled: () => void;
+
     this.lineLists.push(lineList);
-    this.nextScriptID++;
     this.newFunctions = {};
+    this.breakpointsInserted = new Promise<void>(resolve => { breakpointsHandled = resolve });
+
+    if (this.delegate.onScriptParsed) {
+      this.delegate.onScriptParsed({
+        id: this.nextScriptID,
+        source: this.sources[this.nextScriptID].reference,
+        breakpointsHandled
+      });
+    }
+
+    this.nextScriptID++;
   }
 
   public onBreakpointList(data: Uint8Array): void {
@@ -573,14 +589,6 @@ export class EscargotDebugProtocolHandler {
       source: this.source,
       reference: new Source(Path.basename(str), path, sourceReference),
     };
-
-    if (this.delegate.onScriptParsed) {
-      this.delegate.onScriptParsed({
-        'id': this.nextScriptID,
-        'name': this.sourceName,
-        'lineCount': this.source.split(/\n/).length,
-      });
-    }
   }
 
   public onFileName(data: Uint8Array): void {
@@ -1002,6 +1010,15 @@ export class EscargotDebugProtocolHandler {
     return this.receiveString(data);
   }
 
+  public onWaitingAfterPending(data: Uint8Array): void {
+    this.logPacket('onWaitingAfterPending');
+
+    this.breakpointsInserted.then(() => {
+      this.sendSimpleRequest(encodeMessage(
+         this.byteConfig, 'B', [SP.CLIENT.ESCARGOT_DEBUGGER_PENDING_RESUME]));
+    });
+  }
+
   public onMessage(message: Uint8Array): void {
     if (message.byteLength < 1) {
       this.abort('message too short');
@@ -1063,38 +1080,6 @@ export class EscargotDebugProtocolHandler {
 
   public getActiveBreakpoint(breakpointId: number): Breakpoint {
     return this.activeBreakpoints[breakpointId];
-  }
-
-  public getActiveBreakpointsByScriptId(scriptId: number): Breakpoint[] {
-    return this.activeBreakpoints.filter(b => b.scriptId === scriptId);
-  }
-
-  public getActiveFunctionBreakpointsByScriptId(scriptId: number):
-      Breakpoint[] {
-    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(
-        b => b.activeIndex !== -1);
-  }
-
-  public getInactiveFunctionBreakpointsByScriptId(scriptId: number):
-      Breakpoint[] {
-    return this.getPossibleFunctionBreakpointsByScriptId(scriptId).filter(
-        b => b.activeIndex === -1);
-  }
-
-  public getPossibleFunctionBreakpointsByScriptId(scriptId: number):
-      Breakpoint[] {
-    if (scriptId <= 0 || scriptId >= this.sources.length) {
-      throw new Error('invalid script id');
-    }
-
-    const keys: string[] =
-        Object.keys(this.functions)
-            .filter(f => this.functions[f].scriptId === scriptId);
-    const bps: Breakpoint[] = keys.map(
-        key => this.functions[key]
-                   .lines[Object.keys(this.functions[key].lines)[0]]);
-
-    return bps.length ? bps.filter(b => b.func.name !== '') : [];
   }
 
   public findBreakpoint(scriptId: number, line: number, column: number = 0):
