@@ -57,6 +57,7 @@ export interface EscargotDebugProtocolDelegate {
   onOutput?(message: string, category?: string): void;
   onWaitForSource?(): void;
   onWaitingAfterPending?(): void;
+  onWaitForWaitExit?(): void;
 }
 
 export interface EscargotMessageSource {
@@ -213,6 +214,7 @@ export class EscargotDebugProtocolHandler {
   private backtraceFrameID: number = 0;
   private scopeID: number = 1000;
   private waitForSourceEnabled: boolean = false;
+  private waitBeforeExit: boolean = false;
   private terminateException: boolean = false;
 
   private maxMessageSize: number = 0;
@@ -301,6 +303,7 @@ export class EscargotDebugProtocolHandler {
       [SP.SERVER.ESCARGOT_DEBUGGER_WAIT_FOR_SOURCE]: this.onWaitForSource,
       [SP.SERVER.ESCARGOT_DEBUGGER_WAITING_AFTER_PENDING]:
           this.onWaitingAfterPending,
+      [SP.SERVER.ESCARGOT_DEBUGGER_WAIT_FOR_WAIT_EXIT]: this.onWaitForWaitExit,
     };
 
     this.scopeNameMap = {
@@ -566,7 +569,7 @@ export class EscargotDebugProtocolHandler {
     let sourceReference = this.nextScriptID;
 
     if (str === 'eval code' || str.length == 0) {
-      str = `eval_${str.length}_${Crypto.createHash('md5').update(str).digest('hex')}.js`;
+      str = `eval_${str.length}_${Crypto.createHash('md5').update(this.source).digest('hex')}.js`;
       path = str;
     } else {
       if (str[0] != '/') {
@@ -1298,6 +1301,17 @@ export class EscargotDebugProtocolHandler {
     if (this.delegate.onWaitForSource) {
       this.delegate.onWaitForSource();
     }
+  }
+
+  public setWaitBeforeExit(value: boolean): void {
+    this.waitBeforeExit = value;
+  }
+
+  private onWaitForWaitExit(): void {
+    this.logPacket('onWaitForWaitExit');
+
+    this.sendSimpleRequest(encodeMessage(
+      this.byteConfig, 'BB', [SP.CLIENT.ESCARGOT_DEBUGGER_WAIT_BEFORE_EXIT, this.waitBeforeExit ? 1 : 0]));
   }
 
   private sendRequest(data: Uint8Array): Promise<any> {

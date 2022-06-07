@@ -28,6 +28,8 @@ export interface IAttachRequestArguments extends
   debugLog: number;
   /** Filename. */
   program?: string;
+  /** Allow inspecting variables before Escargot termiantes. */
+  wait_before_exit?: boolean;
 }
 
 export interface SourceSendingOptions {
@@ -56,6 +58,8 @@ export interface ILaunchRequestArguments extends
   port: number;
   /** Execution mode if running multiple files. */
   wait_for_source_mode?: string;
+  /** Allow inspecting variables before Escargot termiantes. */
+  wait_before_exit?: boolean;
 }
 
 export interface SourceSendingOptions {
