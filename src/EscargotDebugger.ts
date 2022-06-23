@@ -220,6 +220,10 @@ class EscargotDebugSession extends DebugSession {
       host: args.address,
       port: args.port
     });
+
+    if (currentArgs.wait_before_exit)
+      this._protocolhandler.setWaitBeforeExit(true);
+
     this._protocolhandler.debuggerClient = this._debuggerClient;
 
     this._debuggerClient.connect()
