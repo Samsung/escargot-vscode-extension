@@ -68,7 +68,7 @@ export interface EscargotMessageSource {
 export interface EscargotMessageScriptParsed {
   id: number;
   source: Source;
-  breakpointsHandled: () => void;
+  breakpointsHandled: () => void | null;
 }
 
 export interface EscargotMessageBreakpointHit {
@@ -462,9 +462,33 @@ export class EscargotDebugProtocolHandler {
   }
 
   private onParseErrorEnd(str: string): void {
+    let source: Source = this.sources[this.nextScriptID].reference;
+
     if (this.delegate.onOutput) {
-      this.delegate.onOutput(`Exception: ${str}`, 'stderr');
+      this.delegate.onOutput(`Parse error in ${source.path}:\n${str}`, 'stderr');
     }
+
+    if (source.sourceReference != 0) {
+      let path: string = Path.join(this.localRoot, 'tmp_' + Path.basename(source.path));
+
+      try {
+        Fs.writeFileSync(path, this.sources[this.nextScriptID].source);
+        this.delegate.onOutput(`Saved as ${path}`, 'stderr');
+      } catch {
+      }
+    }
+
+    this.newFunctions = {};
+
+    if (this.delegate.onScriptParsed) {
+      this.delegate.onScriptParsed({
+        id: this.nextScriptID,
+        source,
+        breakpointsHandled: null
+      });
+    }
+
+    this.nextScriptID++;
   }
 
   private onParseError(data: Uint8Array): void {
