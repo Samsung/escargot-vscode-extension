@@ -77,6 +77,10 @@
       {
         "command": "escargot-debug.onTakeHeapSnapshot",
         "title": "Escargot: Take Heap Snapshot"
+      },
+      {
+        "command": "escargot-debug.onRestart",
+        "title": "Escargot: Restart debugging from beginning"
       }
     ],
     "breakpoints": [

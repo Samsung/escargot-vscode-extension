@@ -153,6 +153,10 @@ const takeHeapSnapshot = (): void => {
   vscode.debug.activeDebugSession.customRequest('takeHeapSnapshot');
 };
 
+const restartDebugger = (): void => {
+  vscode.debug.activeDebugSession.customRequest('restartDebugger');
+};
+
 export const activate = (context: vscode.ExtensionContext) => {
   context.subscriptions.push(
       vscode.commands.registerCommand(
@@ -161,6 +165,9 @@ export const activate = (context: vscode.ExtensionContext) => {
       vscode.commands.registerCommand(
           'escargot-debug.onTakeHeapSnapshot',
           takeHeapSnapshot),
+      vscode.commands.registerCommand(
+          'escargot-debug.onRestart',
+          restartDebugger),
       vscode.debug.onDidReceiveDebugSessionCustomEvent(
           e => processCustomEvent(e)));
 };
