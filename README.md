@@ -36,6 +36,7 @@
     - Multiple source handling with list of files
     - Stop after finish running
     - Take heap snapshots
+    - Restart execution from the beginning
 
 
 # Requirements
@@ -162,11 +163,14 @@ If you want to use the development extension just like any other extension in yo
 $ ln -s . ~/.vscode/extensions/escargot-vscode-extension
 ```
 
-# Takeing heap snapshots
+# Taking heap snapshots
 With the VSCode command palette the extension is able to send a signal to the debugger to take a heap snapshot and save it to a `.heapsnapshot` file.
 The command palette is accesible by pressing Shift + Command + P on Mac or Ctrl + Shift + P on Windows and Linux.
 Heap snapshot can be taken with the `Escargot: Take heap snapshot` command.
 The file can be opened to be inspected in VSCode or with the help of Chrome Dev Tools.
+
+# Restarting the debugger
+Similar to taking heap snapshots, the debugger execution can be restarted with the VSCode command palette by pressing Shift + Command + P on Mac or Ctrl + Shift + P on Windows and Linux and issuing the `Escargot: Restart debugging from the beginning` command.
 
 # License
 Escargot VSCode extension is Open Source software under the [Apache 2.0 license](LICENSE). Complete license and copyright information can be found within the code.

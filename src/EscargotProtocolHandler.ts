@@ -336,6 +336,7 @@ export class EscargotDebugProtocolHandler {
       [SP.CLIENT.ESCARGOT_DEBUGGER_FINISH]: 'step-out',
       [SP.CLIENT.ESCARGOT_DEBUGGER_CONTINUE]: 'continue',
       [SP.CLIENT.ESCARGOT_DEBUGGER_STOP]: 'pause',
+      [SP.CLIENT.ESCARGOT_DEBUGGER_RESTART]: 'restart',
     };
     this.lastStopType = null;
   }
@@ -1335,6 +1336,11 @@ export class EscargotDebugProtocolHandler {
   public onTakeHeapSnapshot(): void {
     this.logPacket('onTakeHeapSnapshot');
     this.sendSimpleRequest(encodeMessage(this.byteConfig, 'B', [SP.CLIENT.ESCARGOT_DEBUGGER_TAKE_HEAP_SNAPSHOT]));
+  }
+
+  public onRestartDebugger(): void {
+    this.logPacket('onRestartDebugger');
+    this.sendSimpleRequest(encodeMessage(this.byteConfig, 'B', [SP.CLIENT.ESCARGOT_DEBUGGER_RESTART]));
   }
 
   private onWaitForWaitExit(): void {
