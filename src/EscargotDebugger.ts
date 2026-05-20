@@ -16,7 +16,7 @@
 
 'use strict';
 
-import {DebugSession, InitializedEvent, OutputEvent, BreakpointEvent, TerminatedEvent, Event, Thread, StoppedEvent, StackFrame, ErrorDestination, Scope,} from 'vscode-debugadapter';
+import {DebugSession, InitializedEvent, OutputEvent, LoadedSourceEvent, BreakpointEvent, TerminatedEvent, Event, Thread, StoppedEvent, StackFrame, ErrorDestination, Scope,} from 'vscode-debugadapter';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import * as Util from 'util';
 import * as Cp from 'child_process';
@@ -596,7 +596,11 @@ class EscargotDebugSession extends DebugSession {
   private onScriptParsed(data: EscargotMessageScriptParsed): void {
     this.log('onScriptParsed', LOG_LEVEL.SESSION);
 
-    this.handleSource(data);
+    this.sendEvent(new LoadedSourceEvent('new', data.source));
+
+    if (data.breakpointsHandled) {
+      this.setBreakpoints(data);
+    }
   }
 
   private async onWaitForSource(mode?: string): Promise<void> {
@@ -631,7 +635,7 @@ class EscargotDebugSession extends DebugSession {
 
   // General helper functions
 
-  private async handleSource(data: EscargotMessageScriptParsed): Promise<void> {
+  private async setBreakpoints(data: EscargotMessageScriptParsed): Promise<void> {
     try {
       const userBreakpoints: UserBreakpoints = this._userBreakpoints.get(data.source.path);
 
