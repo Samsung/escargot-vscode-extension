@@ -60,7 +60,7 @@
     "rimraf": "^2.7.1",
     "vscode-debugadapter": "^1.41.0",
     "vscode-debugprotocol": "^1.41.0",
-    "ws": "^5.2.2"
+    "ws": "^5.2.3"
   },
   "activationEvents": [
     "*",
